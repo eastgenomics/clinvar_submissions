@@ -5,6 +5,7 @@ import argparse
 import os.path
 import glob
 from utils.utils import *
+import pyodbc
 
 def parp_inhibitor_submission(clinvar_dict):
     '''
@@ -70,7 +71,7 @@ def extract_clinvar_information(variant):
         variant["Comment on classification"] = "None"
 
     assembly = (
-        variant["Ref genome"].split('.')[0] if variant["Ref genome"] in
+        variant["Ref_genome"].split('.')[0] if variant["Ref_genome"] in
         ["GRCh37.p13", "GRCh38.p13"] else RuntimeError(
             f"Invalid genome build"
         )
@@ -152,6 +153,9 @@ def clinvar_api_request(url, header, var_list, org_guidelines_url):
 
 
 def add_variants_to_db(df, cursor, conn):
+    '''
+    TODO write docstring
+    '''
     # query
     for i in range(df.shape[0]):
         temp_df = df.loc[[i]]
@@ -174,6 +178,10 @@ def add_variants_to_db(df, cursor, conn):
 
 
 def add_wb_to_db(workbook, cursor, conn):
+    '''
+    TODO write docstring
+    '''
+    # TODO once workbooks table is created
     # add a record for the sample to workbooks table.
     query = ("INSERT INTO  [Shiredata].[dbo].[Workbooks]")
 
@@ -184,10 +192,13 @@ def parse_args():
                                 argparse.ArgumentDefaultsHelpFormatter
                                 )
                         )
+    # TODO add help strings
     parser.add_argument('--clinvar_api_key')
     parser.add_argument('--clinvar_testing')
     parser.add_argument('--path_to_workbooks')
     parser.add_argument('--config')
+    parser.add_argument('--uid')
+    parser.add_argument('--password')
     args = parser.parse_args()
     return args
 
@@ -198,68 +209,109 @@ def main():
     Script entry point
     '''
     args = parse_args()
-
+    print(f"Searching {args.path_to_workbooks}...")
     workbooks = glob.glob(args.path_to_workbooks + "*.xlsx")
     with open(args.config) as f:
         config = json.load(f)
-    
+
+    conn_str = (
+        f"DSN=gemini;DRIVER={{SQL Server Native Client 11.0}};"
+        f"UID={args.uid};PWD={args.password}"
+    ) 
+    conn = pyodbc.connect(conn_str)
+    cursor = conn.cursor()
     # TODO change so this uses the dx file in 001
+    # or should it !! could this be a nextflow thing !! much to think of
     with open(args.clinvar_api_key) as f:
         api_key = f.readlines()[0].strip()
 
     for workbook in workbooks:
         print(workbook)
-        add_wb_to_db(workbook, cursor=None, conn=None)
-        get_summary_fields(workbook, config, True)
+        # add_wb_to_db(workbook, cursor, conn) # TODO
+        # Get a df of data from each sheet in workbook:
+        # summary sheet, included variants sheet and any interpret sheets
+        df_summary = get_summary_fields(workbook, config, True)
         df_included = get_included_fields(workbook)
-        df_final = get_report_fields(workbook, df_included)
-        print(df_final)
-    exit()
+        df_interpret = get_report_fields(workbook, df_included)
+        # merge these to get one df
+        if not df_included.empty:
+            df_merged = pd.merge(df_included, df_summary, how="cross")
+        else:
+            df_merged = pd.concat([df_summary, df_included], axis=1)
 
-    headers = {
-            "SP-API-KEY": api_key,
+        df_final = pd.merge(df_merged, df_interpret, on="HGVSc", how="left")
+        print(df_final)
+        add_variants_to_db(df_final, cursor, conn)
+
+    # Select all variants that have interpreted = yes and are not submitted
+    query = (
+        "SELECT * FROM dbo.INCA WHERE Interpreted = 'yes'"
+        "AND [Submission ID] is NULL AND [Accession ID] is NULL;"
+    )
+    cursor.execute(query)
+    conn.commit() 
+    clinvar_df = pd.read_sql(query, conn)
+    conn.close()
+    # subset this df for testing TODO delete this subset in prod would want to do all
+    print(clinvar_df)
+    clinvar_df = clinvar_df.iloc[:1]
+
+    # for variant in db if status = clinvar + not submitted
+    variants = []
+    cuh_variants = []
+    nuh_variants = []
+    for index, variant in clinvar_df.iterrows():
+        clinvar_dict = extract_clinvar_information(variant)
+        # R444 is a pharmacogenomic test, so should be submitted differently
+        if variant["Rcode"] == "R444.1":
+            parp_inhibitor_submission(clinvar_dict)
+        variants.append(clinvar_dict)
+    print(variants)
+
+    # Submit all the variants to ClinVar
+    api_url = select_api_url("True")
+    nuh_headers = {
+            "SP-API-KEY": nuh_api_key,
             "Content-type": "application/json"
         }
-    
-    # # Get variants from db
-    # query = (
-    #     "SELECT relevant fields from db WHERE Interpreted = Yes"
-    # )
 
-    # variants = execute(query)
+    cuh_headers = {
+            "SP-API-KEY": cuh_api_key,
+            "Content-type": "application/json"
+        }
 
-    # # for variant in db if status = clinvar + not submitted
-    # list_to_submit = []
-    # for variant in variants:
-    #     clinvar_dict = extract_clinvar_information(variant)
-    #     # R444 is a pharmacogenomic test, so should be submitted differently
-    #     if variant["Rcode"] == "R444.1":
-    #         parp_inhibitor_submission(clinvar_dict)
-    #     list_to_submit.append(clinvar_dict)
-    with open("/home/katherine/clinvar_submissions/test.json") as f:
-        r = json.load(f)
+    cuh_variants = [x for x in variants if variant["OrganisationID"] == 288359]
+    nuh_variants = [x for x in variants if variant["OrganisationID"] == 509428]
 
-    with open("/home/katherine/clinvar_submissions/test2.json") as f:
-        s = json.load(f)
+    # submit CUH variants
+    if cuh_variants:
+        response = clinvar_api_request(
+            api_url, cuh_headers, cuh_variants, config['CUH_acgs_url']
+        )
+        response_dict = response.json()
 
-    #cuh_variants = [x for x in variants if variant["OrganisationID"] == 288359]
-    #nuh_variants = [x for x in variants if variant["OrganisationID"] == 509428]
+        if response_dict.get('id'):
+            sub_id = response_dict.get('id')
+            query = (f"UPDATE dbo.INCA SET [Submission ID] = '{sub_id}'")
+        else:
+            query = ()
+            # TODO handle fails, should we leave this blank
 
-    api_url = select_api_url("True")
-    drug = parp_inhibitor_submission(s)
-    response = submission_status_check("SUB14707775", headers, api_url)
-    print(response)
-    
-    response = clinvar_api_request(api_url, headers, drug, 'https://submit.ncbi.nlm.n'
-        'ih.gov/api/2.0/files/kf4l0sn8/uk-practice-guidelines-for-variant-clas'
-        'sification-v4-01-2020.pdf/?format=attachment')
     response_dict = response.json()
     print(response_dict)
-    if response_dict.get('id'):
-        query = ("SET submission ID = ID")
-    else:
-        query = ()
-        # TODO handle fails, should we leave this blank
+
+    # Select all with submission IDs but no accession IDs
+    query = (
+        "SELECT [Submission ID] FROM dbo.INCA WHERE Interpreted = 'yes'"
+        "AND [Submission ID] is not NULL AND [Accession ID] is NULL;"        
+    )
+    cursor.execute(query)
+    conn.commit()
+    submission_df = pd.read_sql(query, conn)
+
+    # Need to make this work for CUH and NUH separately (blah)
+    for index, variant in submission_df.iterrows():
+        response = submission_status_check(variant["Submission ID"], headers, api_url)
 
 
 if __name__ == "__main__":

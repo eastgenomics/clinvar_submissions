@@ -80,10 +80,10 @@ def get_summary_fields(
         "Batch ID": batch,
         "Test code": testcode,
         "Probeset ID": probeset,
-        "R code": combined_Rcode,
+        "Rcode": combined_Rcode,
         "Preferred condition name": new_CI,
         "Panel": panel,
-        "Ref genome": ref_genome,
+        "Ref_genome": ref_genome,
         "Date last evaluated": date_evaluated,
     }
     df_summary = pd.DataFrame([d])
@@ -124,18 +124,18 @@ def get_summary_fields(
             "CUH Organisation"
         ]
 
-        df_summary["Organisation ID"] = config_variable["info"]["CUH org ID"]
+        df_summary["OrganisationID"] = config_variable["info"]["CUH org ID"]
     elif folder_name == config_variable["info"]["NUH folder"]:
         df_summary["Organisation"] = config_variable["info"][
             "NUH Organisation"
         ]
 
-        df_summary["Organisation ID"] = config_variable["info"]["NUH org ID"]
+        df_summary["OrganisationID"] = config_variable["info"]["NUH org ID"]
     else:
         print("Running for the wrong folder")
         sys.exit(1)
 
-    return df_summary, error_msg
+    return df_summary
 
 def get_included_fields(filename: str) -> pd.DataFrame:
     """
@@ -308,6 +308,8 @@ def get_report_fields(
             ("BA", "Stand-Alone"),
             ("BP", "Supporting"),
         ]
+        print(df_report)
+        print(type(df_report))
         df_report["Comment on classification"] = ""
         for row in range(df_report.shape[0]):
             evidence = []
@@ -331,7 +333,7 @@ def get_report_fields(
                 row, df_report.columns.get_loc("Comment on classification")
             ] = comment_on_classification
 
-    return df_report, error_msg
+    return df_report
 
 
 def determine_assembly(ref_genome):
