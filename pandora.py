@@ -1,3 +1,8 @@
+"""
+Script to add variants from workbooks to Shire database and submit variants
+from Shire database to ClinVar
+Version: 1.0.0
+"""
 import json
 import requests
 from requests.adapters import HTTPAdapter, Retry
