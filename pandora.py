@@ -14,7 +14,7 @@ import pyodbc
 import dxpy
 
 
-def parp_inhibitor_submission(clinvar_dict):
+def modify_dict_for_pharmacogenomic_clinvar_submission(clinvar_dict):
     '''
     Edit clinvar_submission dict to add drug responsiveness information if this
     is a R444 case, as these are pharmacogenomic cases.
@@ -67,7 +67,7 @@ def parp_inhibitor_submission(clinvar_dict):
     return clinvar_dict
 
 
-def extract_clinvar_information(variant):
+def extract_clinvar_information(variant_row):
     '''
     Extract information from Shire variant record and reformat into dictionary
     Inputs:
@@ -75,42 +75,42 @@ def extract_clinvar_information(variant):
     outputs:
         clinvar_dict: dictionary of data to submit to clinvar
     '''
-    if str(variant["Comment on classification"]) == "nan":
-        variant["Comment on classification"] = "None"
+    if str(variant_row["Comment on classification"]) == "nan":
+        variant_row["Comment on classification"] = "None"
 
-    if variant["Ref_genome"] not in ["GRCh37.p13", "GRCh38.p13"]:
+    if variant_row["Ref_genome"] not in ["GRCh37.p13", "GRCh38.p13"]:
         raise RuntimeError("Invalid genome build")
 
-    assembly = variant["Ref_genome"].split('.')[0]
+    assembly = variant_row["Ref_genome"].split('.')[0]
 
     clinvar_dict = {
             'clinicalSignificance': {
-                'clinicalSignificanceDescription': variant["Germline classification"],
-                'comment': variant["Comment on classification"],
-                'dateLastEvaluated': variant["Date last evaluated"]
+                'clinicalSignificanceDescription': variant_row["Germline classification"],
+                'comment': variant_row["Comment on classification"],
+                'dateLastEvaluated': variant_row["Date last evaluated"]
             },
             'conditionSet': {
-                'condition': [{'name': variant['Preferred condition name']}]
+                'condition': [{'name': variant_row['Preferred condition name']}]
             },
-            'localID': variant["Local ID"],
-            'localKey': variant["Linking ID"],
+            'localID': variant_row["Local ID"],
+            'localKey': variant_row["Linking ID"],
             'observedIn': [{
-                'affectedStatus': variant['Affected status'],
-                'alleleOrigin': variant["Allele origin"],
-                'collectionMethod': variant['Collection method']
+                'affectedStatus': variant_row['Affected status'],
+                'alleleOrigin': variant_row["Allele origin"],
+                'collectionMethod': variant_row['Collection method']
             }],
             'recordStatus': "novel",
             'variantSet': {
                 'variant': [{
                     'chromosomeCoordinates': {
                         'assembly': assembly,
-                        'alternateAllele': variant['Alternate allele'],
-                        'referenceAllele': variant['Reference allele'],
-                        'chromosome': str(variant['Chromosome']),
-                        'start': variant['Start']
+                        'alternateAllele': variant_row['Alternate allele'],
+                        'referenceAllele': variant_row['Reference allele'],
+                        'chromosome': str(variant_row['Chromosome']),
+                        'start': variant_row['Start']
                     },
                     'gene': [{
-                        'symbol': variant["Gene symbol"]
+                        'symbol': variant_row["Gene symbol"]
                     }],
                 }],
             },
