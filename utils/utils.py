@@ -523,7 +523,7 @@ def check_interpreted_col(df: pd.DataFrame) -> str:
         if row in row_yes:
             try:
                 assert (
-                    df.loc[row, "Germline classification"] is not np.nan
+                    df.loc[row, "Germline classification"].notna()
                 ), f"Wrong interpreted column in row {row+1} of included sheet"
             except AssertionError as msg:
                 error_msg.append(str(msg))
