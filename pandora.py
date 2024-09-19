@@ -13,6 +13,7 @@ from utils.utils import *
 import pyodbc
 import dxpy
 
+
 def parp_inhibitor_submission(clinvar_dict):
     '''
     Edit clinvar_submission dict to add drug responsiveness information if this
@@ -38,7 +39,7 @@ def parp_inhibitor_submission(clinvar_dict):
         "Benign": "Allele function"
     }
     drug_response_details = translate2.get(interpretation)
-    #drug_response = translate.get(interpretation)
+    # drug_response = translate.get(interpretation)
 
     # if can't be translated, stop + add error to db
     if drug_response_details == None:
@@ -186,6 +187,7 @@ def add_wb_to_db(workbook, cursor, conn):
     # add a record for the sample to workbooks table.
     query = ("INSERT INTO  [Shiredata].[dbo].[Workbooks]")
 
+
 def parse_args():
     parser = argparse.ArgumentParser(
                             description="",
@@ -194,7 +196,7 @@ def parse_args():
                                 )
                         )
     # TODO add help strings
-    parser.add_argument('--clinvar_api_key')
+    parser.add_argument('--clinvar_api_key') # TODO delete this? find a better way of passing the API key?
     parser.add_argument('--clinvar_testing')
     parser.add_argument('--path_to_workbooks')
     parser.add_argument('--config')
@@ -202,7 +204,6 @@ def parse_args():
     parser.add_argument('--password')
     args = parser.parse_args()
     return args
-
 
 
 def main():

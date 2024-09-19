@@ -11,6 +11,7 @@ import json
 import uuid
 import time
 
+
 def get_folder(filename: str) -> str:
     """
     get the folder of input file
@@ -105,7 +106,6 @@ def get_summary_fields(
         )
         return df_summary, error_msg
 
-
     df_summary["Date last evaluated"] = pd.to_datetime(
         df_summary["Date last evaluated"]
     )
@@ -136,6 +136,7 @@ def get_summary_fields(
         sys.exit(1)
 
     return df_summary
+
 
 def get_included_fields(filename: str) -> pd.DataFrame:
     """
@@ -191,6 +192,7 @@ def get_included_fields(filename: str) -> pd.DataFrame:
     df_included["Linking ID"] = df_included["Local ID"]
 
     return df_included
+
 
 def get_report_fields(
     filename: str, df_included: pd.DataFrame
@@ -356,6 +358,7 @@ def select_api_url(testing):
         )
     return api_url
 
+
 def get_col_letter(worksheet: object, col_name: str) -> str:
     """
     Getting the column letter with specific col name
@@ -375,6 +378,7 @@ def get_col_letter(worksheet: object, col_name: str) -> str:
             col_letter = column_cell[0].column_letter
 
     return col_letter
+
 
 def check_interpret_table(
     df_report: pd.DataFrame, df_included: pd.DataFrame
@@ -590,6 +594,7 @@ def check_sample_name(
         error_msg = str(msg)
         print(msg)
     return error_msg
+
 
 def submission_status_check(submission_id, headers, api_url):
     '''
