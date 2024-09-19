@@ -12,12 +12,19 @@ import glob
 from utils.utils import *
 import pyodbc
 import dxpy
+import numpy as np
+from openpyxl import load_workbook
 
 
 def modify_dict_for_pharmacogenomic_clinvar_submission(clinvar_dict):
     '''
     Edit clinvar_submission dict to add drug responsiveness information if this
     is a R444 case, as these are pharmacogenomic cases.
+    Inputs:
+        clinvar_dict (dict): dict of data to submit to clinvar for one variant
+    Outputs:
+        clinvar_dict (dict): dict of data to submit to clinvar for one variant,
+        modified to make suitable for a pharmacogenomic variant submission
     '''
     # TODO fix this based on feedback from ClinVar
     print(clinvar_dict)
@@ -25,25 +32,20 @@ def modify_dict_for_pharmacogenomic_clinvar_submission(clinvar_dict):
         'clinicalSignificanceDescription'
     ]
     translate = {
-        "Pathogenic": "Responsive",
-        "Likely pathogenic": "Likely responsive",
-        "Uncertain significance": "Uncertain responsiveness",
-        "Likely benign": "Likely unresponsive",
-        "Benign": "Unresponsive"
-    }
-    translate2 = {
         "Pathogenic": "No function",
         "Likely pathogenic": "Uncertain function",
         "Uncertain significance": "Uncertain function",
         "Likely benign": "Uncertain function",
         "Benign": "Allele function"
     }
-    drug_response_details = translate2.get(interpretation)
+    drug_response_details = translate.get(interpretation)
     # drug_response = translate.get(interpretation)
 
     # if can't be translated, stop + add error to db
     if drug_response_details == None:
-        query = ("db error! value not translateable")
+        # TODO this functionality can be added once an Error column is added
+        # to the db
+        query = ("") # TODO fill this in with appropriate query
         return
 
     clinvar_dict['clinicalSignificance'][
@@ -75,11 +77,11 @@ def extract_clinvar_information(variant_row):
     outputs:
         clinvar_dict: dictionary of data to submit to clinvar
     '''
-    if str(variant_row["Comment on classification"]) == "nan":
-        variant_row["Comment on classification"] = "None"
+    if variant_row["Comment on classification"].isna():
+        variant_row["Comment on classification"] = ""
 
     if variant_row["Ref_genome"] not in ["GRCh37.p13", "GRCh38.p13"]:
-        raise RuntimeError("Invalid genome build")
+        raise ValueError("Invalid genome build")
 
     assembly = variant_row["Ref_genome"].split('.')[0]
 
@@ -190,11 +192,11 @@ def add_wb_to_db(workbook, cursor, conn):
 
 def parse_args():
     parser = argparse.ArgumentParser(
-                            description="",
-                            formatter_class=(
-                                argparse.ArgumentDefaultsHelpFormatter
-                                )
-                        )
+        description="",
+        formatter_class=(
+            argparse.ArgumentDefaultsHelpFormatter
+        )
+    )
     # TODO add help strings
     parser.add_argument('--clinvar_api_key') # TODO delete this? find a better way of passing the API key?
     parser.add_argument('--clinvar_testing')
@@ -205,29 +207,58 @@ def parse_args():
     args = parser.parse_args()
     return args
 
+def submit_to_clinvar():
 
-def main():
+def connect_to_db(args):
     '''
-    Script entry point
+    Connect to the database
+    Inputs:
+        args (argparse.Namespace): command line arguments
+    Outputs:
+        cursor: pyodbc cursor connection 
     '''
-    args = parse_args()
-    print(f"Searching {args.path_to_workbooks}...")
-    workbooks = glob.glob(args.path_to_workbooks + "*.xlsx")
-    with open(args.config) as f:
-        config = json.load(f)
-
     conn_str = (
         f"DSN=gemini;DRIVER={{SQL Server Native Client 11.0}};"
         f"UID={args.uid};PWD={args.password}"
     ) 
     conn = pyodbc.connect(conn_str)
     cursor = conn.cursor()
+    return cursor, conn
+
+
+
+def execute_query(cursor, conn, query):
+    '''
+    TODO add docstring
+    '''
+    cursor.execute(query)
+    conn.commit()
+    return cursor
+
+
+
+def main():
+    '''
+    Script entry point
+    '''
+    args = parse_args()
+
+    with open(args.config) as f:
+        config = json.load(f)
+  
+
     # TODO change so this uses the dx file in 001
     # or should it !! could this be a nextflow thing !! much to think of
     with open(args.clinvar_api_key) as f:
         api_key = f.readlines()[0].strip()
 
+    cursor, conn = connect_to_db(args)
+
+    # Get workbooks
+    print(f"Searching {args.path_to_workbooks}...")
+    workbooks = glob.glob(args.path_to_workbooks + "*.xlsx")
     for workbook in workbooks:
+        workbook = load_workbook(workbook)
         # add_wb_to_db(workbook, cursor, conn) # TODO
         # Get a df of data from each sheet in workbook:
         # summary sheet, included variants sheet and any interpret sheets
@@ -245,7 +276,8 @@ def main():
         add_variants_to_db(df_final, cursor, conn)
 
     # Select all variants that have interpreted = yes and are not submitted
-    query = (
+    execute_query(
+        cursor,
         "SELECT * FROM dbo.INCA WHERE Interpreted = 'yes'"
         "AND [Submission ID] is NULL AND [Accession ID] is NULL;"
     )
@@ -299,12 +331,13 @@ def main():
     print(response_dict)
 
     # Select all with submission IDs but no accession IDs
-    query = (
+    execute_query = (
+        cursor,
+        conn,
         "SELECT [Submission ID] FROM dbo.INCA WHERE Interpreted = 'yes'"
         "AND [Submission ID] is not NULL AND [Accession ID] is NULL;"        
     )
-    cursor.execute(query)
-    conn.commit()
+
     submission_df = pd.read_sql(query, conn)
 
     # Need to make this work for CUH and NUH separately (blah)
