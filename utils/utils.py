@@ -2,7 +2,6 @@ import dxpy
 import re
 from datetime import datetime, date
 from dateutil import parser as date_parser
-from openpyxl import load_workbook
 import pandas as pd
 import numpy as np
 import os
@@ -12,23 +11,22 @@ import uuid
 import time
 
 
-def get_folder(filename: str) -> str:
+def get_folder_of_input_file(filename: str) -> str:
     """
-    get the folder of input file
-    Parameters:
-    ----------
-      str for input filename
-
-    Return:
-      str for folder name
+    TODO note: this could change depending on if we stop being dependent on
+    NUH/CUH folder paths in clingen 
+    Get the folder of input file
+    Inputs:
+        filename (str): filename 
+    Outputs:
+        folder (str): folder name
     """
     folder = os.path.basename(os.path.normpath(os.path.dirname(filename)))
-    print(folder)
     return folder
 
 
 def get_summary_fields(
-    filename: str, config_variable: dict, unusual_sample_name: bool
+    workbook: str, config_variable: dict, unusual_sample_name: bool
 ):  # -> tuple[pd.DataFrame, str]
     """
     Extract data from summary sheet of variant workbook
@@ -44,7 +42,6 @@ def get_summary_fields(
       data frame from summary sheet
       str for error message
     """
-    workbook = load_workbook(filename)
     sampleID = workbook["summary"]["B1"].value
     clinical_indication = workbook["summary"]["F1"].value
     if ";" in clinical_indication:
@@ -138,23 +135,18 @@ def get_summary_fields(
     return df_summary
 
 
-def get_included_fields(filename: str) -> pd.DataFrame:
+def get_included_fields(workbook) -> pd.DataFrame:
     """
     Extract data from included sheet of variant workbook
-
-    Parameters
-    ----------
-      variant workbook file name
-
-    Return
-    ------
-      data frame from included sheet
+    Inputs:
+        workbook (openpyxl wb object): workbook being used
+    Outputs
+        df_included (pd.DataFrame): data frame extracted from included sheet
     """
-    workbook = load_workbook(filename)
     num_variants = workbook["summary"]["C38"].value
     interpreted_col = get_col_letter(workbook["included"], "Interpreted")
     df = pd.read_excel(
-        filename,
+        workbook,
         sheet_name="included",
         usecols=f"A:{interpreted_col}",
         nrows=num_variants,
@@ -194,24 +186,18 @@ def get_included_fields(filename: str) -> pd.DataFrame:
     return df_included
 
 
-def get_report_fields(
-    filename: str, df_included: pd.DataFrame
-):  # -> tuple[pd.DataFrame, str]
+def get_report_fields(workbook, df_included):
     """
     Extract data from interpret sheet(s) of variant workbook
 
-    Parameters
-    ----------
-      variant workbook file name
-      data frame from included sheet
-
-    Return
-    ------
-      data frame from interpret sheet(s)
-      str for error message
+    Inputs:
+        workbook (openpyxl wb object): workbook being used
+        df_included (pd.DataFrame): data frame extracted from included sheet
+    Outputs
+        df_included (pd.DataFrame): dataframe extracted from interpret sheet(s)
+        err_msg (str): error message # TODO this error message will be removed
 
     """
-    workbook = load_workbook(filename)
     field_cells = [
         ("Associated disease", "C4"),
         ("Known inheritance", "C5"),
@@ -337,6 +323,7 @@ def get_report_fields(
 
 
 def select_api_url(testing):
+    # TODO reconfigure this whole thing !!
     '''
     Select which API URL to use depending on if this is a test run or if
     variants are planned to be submitted to ClinVar
