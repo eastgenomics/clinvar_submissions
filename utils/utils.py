@@ -535,11 +535,11 @@ def check_interpreted_col(df: pd.DataFrame) -> str:
                     "of included sheet"
                 )
                 assert (
-                    df.loc[row, "Germline classification"] is np.nan
+                    df.loc[row, "Germline classification"].isna()
                 ), f"Wrong interpreted column in row {row+1} of included sheet"
             except AssertionError as msg:
                 error_msg.append(str(msg))
-                print(msg)
+
     error_msg = " ".join(error_msg)
 
     return error_msg
@@ -579,7 +579,7 @@ def check_sample_name(
         error_msg = None
     except AssertionError as msg:
         error_msg = str(msg)
-        print(msg)
+
     return error_msg
 
 
