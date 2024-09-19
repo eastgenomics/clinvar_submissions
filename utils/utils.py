@@ -62,7 +62,7 @@ def get_summary_fields(
 
     panel = workbook["summary"]["F2"].value
     date_evaluated = workbook["summary"]["G22"].value
-    instrument, sample, batch, testcode, x, probeset = sampleID.split("-")
+    instrument, sample, batch, testcode, _, probeset = sampleID.split("-")
     ref_genome = "not_defined"
     for cell in workbook["summary"]["A"]:
         if cell.value == "Reference:":
@@ -308,8 +308,6 @@ def get_report_fields(
             ("BA", "Stand-Alone"),
             ("BP", "Supporting"),
         ]
-        print(df_report)
-        print(type(df_report))
         df_report["Comment on classification"] = ""
         for row in range(df_report.shape[0]):
             evidence = []
@@ -333,69 +331,7 @@ def get_report_fields(
                 row, df_report.columns.get_loc("Comment on classification")
             ] = comment_on_classification
 
-    return df_report
-
-
-def determine_assembly(ref_genome):
-    '''
-    Work out assembly from the reference genome used to by VEP to process the
-    data
-    In our dias pipeline, this is the RefSeq cache in VEP 105
-
-    For GRCh37, this will be GRCh37.p13
-    For GRCh38, this will be GRCh38.p13
-
-    Inputs:
-        ref_genome (str): name of the reference genome for VEP for annotation
-    Outputs:
-        assembly (str): genome build of the reference genome (GRCh37 or GRCh38)
-    '''
-    if ref_genome == "GRCh37.p13":
-        assembly = "GRCh37"
-        print(
-            f"Selected GRCh37 as assembly, because ref genome is {ref_genome}"
-        )
-    elif ref_genome == "GRCh38.p13":
-        assembly = "GRCh38"
-        print(
-            f"Selected GRCh38 as assembly, because ref genome is {ref_genome}"
-        )
-    else:
-        raise RuntimeError(
-            f"Could not determine genome build from ref genome {ref_genome}"
-        )
-    return assembly
-
-
-def add_lab_specific_guidelines(organisation_id, clinvar_dict):
-    '''
-    Format submission correctly if this is an NUH case
-    Inputs:
-        organisation_id (int): ClinVar organisation ID for submitting lab (CUH
-        or NUH)
-        clinvar_dict (dict): dictionary of info to submit to clinvar
-    Outputs:
-        clinvar_dict (dict): dictionary of info to submit to clinvar, edited
-        to add url for assertion criteria which is specific to CUH or NUH
-    '''
-    # If NUH
-    if organisation_id == 509428:
-        clinvar_dict['assertionCriteria'] = {'url': 'https://submit.ncbi.nlm.n'
-        'ih.gov/api/2.0/files/iptxgqju/uk-practice-guidelines-for-variant-clas'
-        'sification-v4-01-2020.pdf/?format=attachment'}
-
-    # If CUH
-    elif organisation_id == 288359:
-        clinvar_dict['assertionCriteria'] = {'url': 'https://submit.ncbi.nlm.n'
-        'ih.gov/api/2.0/files/kf4l0sn8/uk-practice-guidelines-for-variant-clas'
-        'sification-v4-01-2020.pdf/?format=attachment'}
-
-    else:
-        raise ValueError(
-            f"Value given for organisation ID {organisation_id} is not a valid"
-            " option.\nValid options:\n288359 - CUH\n509428 - NUH"
-        )
-    return clinvar_dict
+    return df_report, error_msg
 
 
 def select_api_url(testing):
@@ -653,10 +589,7 @@ def check_sample_name(
     except AssertionError as msg:
         error_msg = str(msg)
         print(msg)
-
-    query = (
-        ""
-    )
+    return error_msg
 
 def submission_status_check(submission_id, headers, api_url):
     '''
