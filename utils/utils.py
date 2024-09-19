@@ -658,48 +658,6 @@ def check_sample_name(
         ""
     )
 
-
-    """
-    check if extra row(s)/col(s) are added in the sheets
-
-    Parameters
-    ----------
-      variant workbook file name
-
-    Return
-    ------
-      str for error message
-    """
-    workbook = load_workbook(filename)
-    summary = workbook["summary"]
-    reports = [
-        idx
-        for idx in workbook.sheetnames
-        if idx.lower().startswith("interpret")
-    ]
-    try:
-        assert (
-            summary["G21"].value == "Date"
-        ), "extra col(s) added or change(s) done in summary sheet"
-        for sheet in reports:
-            report = workbook[sheet]
-            assert report["B26"].value == "FINAL ACMG CLASSIFICATION", (
-                "extra row(s) or col(s) added or change(s) done in "
-                "interpret sheet"
-            )
-            assert report["L8"].value == "B_POINTS", (
-                "extra row(s) or col(s) added or change(s) done in "
-                "interpret sheet"
-            )
-        error_msg = None
-    except AssertionError as msg:
-        error_msg = str(msg)
-        print(msg)
-
-        query = (
-        ""
-    )
-
 def submission_status_check(submission_id, headers, api_url):
     '''
     Queries ClinVar API about a submission ID to obtain more details about its

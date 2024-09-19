@@ -11,12 +11,14 @@ import os.path
 import glob
 from utils.utils import *
 import pyodbc
+import dxpy
 
 def parp_inhibitor_submission(clinvar_dict):
     '''
     Edit clinvar_submission dict to add drug responsiveness information if this
     is a R444 case, as these are pharmacogenomic cases.
     '''
+    # TODO fix this based on feedback from ClinVar
     print(clinvar_dict)
     interpretation = clinvar_dict['clinicalSignificance'][
         'clinicalSignificanceDescription'
@@ -66,7 +68,7 @@ def parp_inhibitor_submission(clinvar_dict):
 
 def extract_clinvar_information(variant):
     '''
-    Extract information from variant CSV and reformat into dictionary.
+    Extract information from Shire variant record and reformat into dictionary
     Inputs:
         variant: row from variant dataframe with data for one variant
     outputs:
@@ -75,12 +77,10 @@ def extract_clinvar_information(variant):
     if str(variant["Comment on classification"]) == "nan":
         variant["Comment on classification"] = "None"
 
-    assembly = (
-        variant["Ref_genome"].split('.')[0] if variant["Ref_genome"] in
-        ["GRCh37.p13", "GRCh38.p13"] else RuntimeError(
-            f"Invalid genome build"
-        )
-    )
+    if variant["Ref_genome"] not in ["GRCh37.p13", "GRCh38.p13"]:
+        raise RuntimeError("Invalid genome build")
+
+    assembly = variant["Ref_genome"].split('.')[0]
 
     clinvar_dict = {
             'clinicalSignificance': {
@@ -165,13 +165,9 @@ def add_variants_to_db(df, cursor, conn):
     for i in range(df.shape[0]):
         temp_df = df.loc[[i]]
         temp_df = temp_df[temp_df.columns[~temp_df.isnull().all()]]
-        cols = [f"[{x}]" for x in temp_df.columns]
-        columns = ", ".join(cols)
         qmarks = ", ".join("?" * temp_df.shape[1])
-        qry = "Insert Into [Shiredata].[dbo].[INCA] (%s) Values (%s)" % (
-            columns,
-            qmarks
-        )
+        cols = ", ".join([f"[{x}]" for x in temp_df.columns])
+        qry = f"Insert Into [Shiredata].[dbo].[INCA] ({cols}) Values ({qmarks})"
         # convert int64 to int
         item_to_insert = []
         for item in list(temp_df.iloc[0]):
@@ -231,7 +227,6 @@ def main():
         api_key = f.readlines()[0].strip()
 
     for workbook in workbooks:
-        print(workbook)
         # add_wb_to_db(workbook, cursor, conn) # TODO
         # Get a df of data from each sheet in workbook:
         # summary sheet, included variants sheet and any interpret sheets
@@ -254,14 +249,11 @@ def main():
         "AND [Submission ID] is NULL AND [Accession ID] is NULL;"
     )
     cursor.execute(query)
-    conn.commit() 
+    conn.commit()
     clinvar_df = pd.read_sql(query, conn)
     conn.close()
     # subset this df for testing TODO delete this subset in prod would want to do all
-    print(clinvar_df)
     clinvar_df = clinvar_df.iloc[:1]
-
-    # for variant in db if status = clinvar + not submitted
     variants = []
     cuh_variants = []
     nuh_variants = []
@@ -269,11 +261,11 @@ def main():
         clinvar_dict = extract_clinvar_information(variant)
         # R444 is a pharmacogenomic test, so should be submitted differently
         if variant["Rcode"] == "R444.1":
-            parp_inhibitor_submission(clinvar_dict)
+            clinvar_dict = parp_inhibitor_submission(clinvar_dict)
         variants.append(clinvar_dict)
-    print(variants)
 
     # Submit all the variants to ClinVar
+
     api_url = select_api_url("True")
     nuh_headers = {
             "SP-API-KEY": nuh_api_key,
