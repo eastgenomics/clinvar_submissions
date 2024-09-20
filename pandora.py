@@ -16,7 +16,7 @@ import numpy as np
 from openpyxl import load_workbook
 
 
-def modify_dict_for_pharmacogenomic_clinvar_submission(clinvar_dict):
+def modify_for_R444_clinvar_submission(clinvar_dict):
     '''
     Edit clinvar_submission dict to add drug responsiveness information if this
     is a R444 case, as these are pharmacogenomic cases.
@@ -120,6 +120,7 @@ def extract_clinvar_information(variant_row):
 
     return clinvar_dict
 
+
 def collect_clinvar_data_to_submit(clinvar_df):
 
     variants = []
@@ -127,7 +128,7 @@ def collect_clinvar_data_to_submit(clinvar_df):
         clinvar_dict = extract_clinvar_information(variant)
         # R444 is a pharmacogenomic test, so should be submitted differently
         if variant["Rcode"] == "R444.1":
-            clinvar_dict = parp_inhibitor_submission(clinvar_dict)
+            clinvar_dict = modify_for_R444_clinvar_submission(clinvar_dict)
         variants.append(clinvar_dict)
 
     cuh_variants = [x for x in variants if variant["OrganisationID"] == 288359]

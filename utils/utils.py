@@ -12,7 +12,7 @@ import time
 
 
 def get_folder_of_input_file(filename: str) -> str:
-    """
+    '''
     TODO note: this could change depending on if we stop being dependent on
     NUH/CUH folder paths in clingen 
     Get the folder of input file
@@ -20,7 +20,7 @@ def get_folder_of_input_file(filename: str) -> str:
         filename (str): filename 
     Outputs:
         folder (str): folder name
-    """
+    '''
     folder = os.path.basename(os.path.normpath(os.path.dirname(filename)))
     return folder
 
@@ -38,7 +38,7 @@ def get_workbook_data(workbook, config, unusual_sample_name):
         df_final (pd.DataFrame): data frame extracted from workbook
     '''
     # get data from summary sheet, included variants sheet and interpret sheets
-    df_summary = get_summary_fields(workbook, config, True)
+    df_summary = get_summary_fields(workbook, config, unusual_sample_name)
     df_included = get_included_fields(workbook)
     df_interpret = get_report_fields(workbook, df_included)
 
@@ -52,23 +52,19 @@ def get_workbook_data(workbook, config, unusual_sample_name):
 
     return df_final
 
-def get_summary_fields(
-    workbook: str, config_variable: dict, unusual_sample_name: bool
-):  # -> tuple[pd.DataFrame, str]
-    """
+
+def get_summary_fields(workbook, config_variable, unusual_sample_name):
+    '''
     Extract data from summary sheet of variant workbook
-
-    Parameters
-    ----------
-      variant workbook file name
-      dict from config file
-      boolean for unusual_sample_name
-
-    Returns
-    -------
-      data frame from summary sheet
-      str for error message
-    """
+    Inputs
+        workbook (openpyxl wb object): workbook being used
+        config (dict): config variable
+        unusual_sample_name (bool): whether the sample has an unusual name, if
+        True, will skip validating the sample name conventions.
+    Outputs
+        df_summary (pd.DataFrame): data frame extracted from workbook summary
+        sheet
+    '''
     sampleID = workbook["summary"]["B1"].value
     clinical_indication = workbook["summary"]["F1"].value
     if ";" in clinical_indication:
@@ -142,7 +138,9 @@ def get_summary_fields(
 
     # getting the folder name of workbook
     # the folder name should return designated folder for either CUH or NUH
-    folder_name = get_folder(filename)
+    # TODO this whole thing could get removed depending on if we continue to
+    # use folders to differentiate between NUH and CUH workbooks
+    folder_name = get_folder_of_input_file(workbook.name)
     if folder_name == config_variable["info"]["CUH folder"]:
         df_summary["Organisation"] = config_variable["info"][
             "CUH Organisation"
@@ -157,19 +155,18 @@ def get_summary_fields(
         df_summary["OrganisationID"] = config_variable["info"]["NUH org ID"]
     else:
         print("Running for the wrong folder")
-        sys.exit(1)
 
     return df_summary
 
 
 def get_included_fields(workbook) -> pd.DataFrame:
-    """
+    '''
     Extract data from included sheet of variant workbook
     Inputs:
         workbook (openpyxl wb object): workbook being used
     Outputs
         df_included (pd.DataFrame): data frame extracted from included sheet
-    """
+    '''
     num_variants = workbook["summary"]["C38"].value
     interpreted_col = get_col_letter(workbook["included"], "Interpreted")
     df = pd.read_excel(
@@ -213,77 +210,19 @@ def get_included_fields(workbook) -> pd.DataFrame:
     return df_included
 
 
-def get_report_fields(workbook, df_included):
-    """
+def get_report_fields(workbook, config, df_included):
+    '''
     Extract data from interpret sheet(s) of variant workbook
-
     Inputs:
         workbook (openpyxl wb object): workbook being used
+        config (dict): config variable
         df_included (pd.DataFrame): data frame extracted from included sheet
     Outputs
         df_included (pd.DataFrame): dataframe extracted from interpret sheet(s)
         err_msg (str): error message # TODO this error message will be removed
 
-    """
-    field_cells = [
-        ("Associated disease", "C4"),
-        ("Known inheritance", "C5"),
-        ("Prevalence", "C6"),
-        ("HGVSc", "C3"),
-        ("Germline classification", "C26"),
-        ("PVS1", "H10"),
-        ("PVS1_evidence", "C10"),
-        ("PS1", "H11"),
-        ("PS1_evidence", "C11"),
-        ("PS2", "H12"),
-        ("PS2_evidence", "C12"),
-        ("PS3", "H13"),
-        ("PS3_evidence", "C13"),
-        ("PS4", "H14"),
-        ("PS4_evidence", "C14"),
-        ("PM1", "H15"),
-        ("PM1_evidence", "C15"),
-        ("PM2", "H16"),
-        ("PM2_evidence", "C16"),
-        ("PM3", "H17"),
-        ("PM3_evidence", "C17"),
-        ("PM4", "H18"),
-        ("PM4_evidence", "C18"),
-        ("PM5", "H19"),
-        ("PM5_evidence", "C19"),
-        ("PM6", "H20"),
-        ("PM6_evidence", "C20"),
-        ("PP1", "H21"),
-        ("PP1_evidence", "C21"),
-        ("PP2", "H22"),
-        ("PP2_evidence", "C22"),
-        ("PP3", "H23"),
-        ("PP3_evidence", "C23"),
-        ("PP4", "H24"),
-        ("PP4_evidence", "C24"),
-        ("BS1", "K16"),
-        ("BS1_evidence", "C16"),
-        ("BS2", "K12"),
-        ("BS2_evidence", "C12"),
-        ("BS3", "K13"),
-        ("BS3_evidence", "C13"),
-        ("BA1", "K9"),
-        ("BA1_evidence", "C9"),
-        ("BP2", "K17"),
-        ("BP2_evidence", "C17"),
-        ("BP3", "K18"),
-        ("BP3_evidence", "C18"),
-        ("BS4", "K21"),
-        ("BS4_evidence", "C21"),
-        ("BP1", "K22"),
-        ("BP1_evidence", "C22"),
-        ("BP4", "K23"),
-        ("BP4_evidence", "C23"),
-        ("BP5", "K24"),
-        ("BP5_evidence", "C24"),
-        ("BP7", "K25"),
-        ("BP7_evidence", "C25"),
-    ]
+    '''
+    field_cells = config.get("field_cells")
     col_name = [i[0] for i in field_cells]
     df_report = pd.DataFrame(columns=col_name)
     report_sheets = [
@@ -314,15 +253,7 @@ def get_report_fields(workbook, df_included):
                     df_report.iloc[row, column + 1] = np.nan
 
         # getting comment on classification for clinvar submission
-        matched_strength = [
-            ("PVS", "Very Strong"),
-            ("PS", "Strong"),
-            ("PM", "Moderate"),
-            ("PP", "Supporting"),
-            ("BS", "Supporting"),
-            ("BA", "Stand-Alone"),
-            ("BP", "Supporting"),
-        ]
+        matched_strength = config.get("matched_strength")
         df_report["Comment on classification"] = ""
         for row in range(df_report.shape[0]):
             evidence = []
@@ -377,19 +308,15 @@ def select_api_url(clinvar_testing, config):
     return api_url
 
 
-def get_col_letter(worksheet: object, col_name: str) -> str:
-    """
+def get_col_letter(worksheet, col_name):
+    '''
     Getting the column letter with specific col name
-
-    Parameters
-    ----------
-    openpyxl object of current sheet
-    str for name of column to get col letter
-
-    Return
-    -------
-        str for column letter for specific column name
-    """
+    Inputs
+        worksheet (openpyxl object): current worksheet
+        col_name (str): name of column
+    Outputs
+        col_letter (str): letter of column
+    '''
     col_letter = None
     for column_cell in worksheet.iter_cols(1, worksheet.max_column):
         if column_cell[0].value == col_name:
@@ -398,44 +325,26 @@ def get_col_letter(worksheet: object, col_name: str) -> str:
     return col_letter
 
 
-def check_interpret_table(
-    df_report: pd.DataFrame, df_included: pd.DataFrame
-) -> str:
-    """
-    check if ACMG classification and HGVSc are correctly
+def check_interpret_table(df_interpret, df_included, config):
+    '''
+    Check if ACMG classification and HGVSc are correctly
     filled in in the interpret table(s)
-
-    Parameters
-    ----------
-      df from interpret sheet(s)
-      df from included sheet
-
-    Return
-    ------
-      str for error message
-    """
+    Inputs
+        df_interpret (pd.Dataframe): df from interpret sheet(s)
+        df_included (pd.Dataframe): df from included sheet
+        config (dict): config variable
+    Outputs
+      error_msg (str): error message
+    '''
     error_msg = []
-    strength_dropdown = [
-        "Very Strong",
-        "Strong",
-        "Moderate",
-        "Supporting",
-        "NA",
-    ]
-    BA1_dropdown = [
-        "Stand-Alone",
-        "Very Strong",
-        "Strong",
-        "Moderate",
-        "Supporting",
-        "NA",
-    ]
-    for row in range(df_report.shape[0]):
+    strength_dropdown = config.get("strength_dropdown")
+    BA1_dropdown = config.get("BA1_dropdown")
+    for row in range(df_interpret.shape[0]):
         try:
             assert (
-                df_report.loc[row, "Germline classification"] is not np.nan
+                df_interpret.loc[row, "Germline classification"].notna()
             ), "empty ACMG classification in interpret table"
-            assert df_report.loc[row, "Germline classification"] in [
+            assert df_interpret.loc[row, "Germline classification"] in [
                 "Pathogenic",
                 "Likely Pathogenic",
                 "Uncertain Significance",
@@ -443,48 +352,22 @@ def check_interpret_table(
                 "Benign",
             ], "wrong ACMG classification in interpret table"
             assert (
-                df_report.loc[row, "HGVSc"] is not np.nan
+                df_interpret.loc[row, "HGVSc"].notna()
             ), "empty HGVSc in interpret table"
-            assert df_report.loc[row, "HGVSc"] in list(df_included["HGVSc"]), (
+            assert df_interpret.loc[row, "HGVSc"] in list(df_included["HGVSc"]), (
                 "HGVSc in interpret table does not match with that in "
                 "included sheet"
             )
-            criteria_list = [
-                "PVS1",
-                "PS1",
-                "PS2",
-                "PS3",
-                "PS4",
-                "PM1",
-                "PM2",
-                "PM3",
-                "PM4",
-                "PM5",
-                "PM6",
-                "PP1",
-                "PP2",
-                "PP3",
-                "PP4",
-                "BS2",
-                "BS3",
-                "BS1",
-                "BP2",
-                "BP3",
-                "BS4",
-                "BP1",
-                "BP4",
-                "BP5",
-                "BP7",
-            ]
-            for criteria in criteria_list:
-                if df_report.loc[row, criteria] is not np.nan:
+            acgs_criteria = config.get("acgs_criteria")
+            for criteria in acgs_criteria:
+                if df_interpret.loc[row, criteria].notna():
                     assert (
-                        df_report.loc[row, criteria] in strength_dropdown
+                        df_interpret.loc[row, criteria] in strength_dropdown
                     ), f"Wrong strength in {criteria}"
 
-            if df_report.loc[row, "BA1"] is not np.nan:
+            if df_interpret.loc[row, "BA1"].notna():
                 assert (
-                    df_report.loc[row, "BA1"] in BA1_dropdown
+                    df_interpret.loc[row, "BA1"] in BA1_dropdown
                 ), "Wrong strength in BA1"
 
         except AssertionError as msg:
@@ -492,21 +375,16 @@ def check_interpret_table(
             print(msg)
     error_msg = "".join(error_msg)
 
-    return error_msg
+    return error_msg # TODO add error_msg to db rather than return it
 
-def checking_sheets(filename: str) -> str:
-    """
-    check if extra row(s)/col(s) are added in the sheets
-
-    Parameters
-    ----------
-      variant workbook file name
-
-    Return
-    ------
-      str for error message
-    """
-    workbook = load_workbook(filename)
+def checking_sheets(workbook):
+    '''
+    Check if extra row(s)/col(s) are added in the sheets
+    Inputs
+        workbook (openpyxl wb object): object of query workbook with variants
+    Outputs
+        error_msg (str): error message
+    '''
     summary = workbook["summary"]
     reports = [
         idx
@@ -530,24 +408,17 @@ def checking_sheets(filename: str) -> str:
         error_msg = None
     except AssertionError as msg:
         error_msg = str(msg)
-        print(msg)
 
-    return error_msg
+    return error_msg # TODO add error_msg to db rather than return it
 
 
-def check_interpreted_col(df: pd.DataFrame) -> str:
-    """
-    check if interpreted col in included sheet
-    is correctly filled in
-
-    Parameters
-    ----------
-    merged df
-
-    Return
-    ------
-      str for error message
-    """
+def check_interpreted_col(df):
+    '''
+    Check if interpreted col in included sheet is correctly filled in
+    Inputs
+        df (pd.DataFrame): merged dataframe with data from workbook
+        error_msg (str): error message
+    '''
     row_yes = df[df["Interpreted"] == "yes"].index.tolist()
     error_msg = []
     for row in range(df.shape[0]):
@@ -573,29 +444,18 @@ def check_interpreted_col(df: pd.DataFrame) -> str:
 
     error_msg = " ".join(error_msg)
 
-    return error_msg
+    return error_msg  # TODO add error_msg to db rather than return it
 
 
-def check_sample_name(
-    instrumentID: str,
-    sample_ID: str,
-    batchID: str,
-    testcode: str,
-    probesetID: str,
-) -> str:
-    """
-    checking if individual parts of sample name have
-    expected naming format
-
-    Parameters
-    ----------
+def check_sample_name(instrumentID, sample_ID, batchID, testcode, probesetID):
+    '''
+    Checking that individual parts of sample name have expected naming format
+    Inputs
       str values for instrumentID, sample_ID, batchID, testcode,
       probesetID
-
-    Return
-    ------
-      str for error message
-    """
+    Outputs
+        error_msg (str): error message
+    '''
     try:
         assert re.match(
             r"^\d{9}$", instrumentID
@@ -611,7 +471,7 @@ def check_sample_name(
     except AssertionError as msg:
         error_msg = str(msg)
 
-    return error_msg
+    return error_msg  # TODO add error_msg to db rather than return it
 
 
 def submission_status_check(submission_id, headers, api_url):
