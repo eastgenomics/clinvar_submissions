@@ -53,7 +53,7 @@ def get_workbook_data(workbook, config, unusual_sample_name):
     return df_final
 
 
-def get_summary_fields(workbook, config_variable, unusual_sample_name):
+def get_summary_fields(workbook, config, unusual_sample_name):
     '''
     Extract data from summary sheet of variant workbook
     Inputs
@@ -129,32 +129,26 @@ def get_summary_fields(workbook, config_variable, unusual_sample_name):
     df_summary["Date last evaluated"] = pd.to_datetime(
         df_summary["Date last evaluated"]
     )
-    df_summary["Institution"] = config_variable["info"]["Institution"]
-    df_summary["Collection method"] = config_variable["info"][
-        "Collection method"
-    ]
-    df_summary["Allele origin"] = config_variable["info"]["Allele origin"]
-    df_summary["Affected status"] = config_variable["info"]["Affected status"]
+    df_summary["Institution"] = config.get("Institution")
+    df_summary["Collection method"] = config.get("Collection method")
+    df_summary["Allele origin"] = config.get("Allele origin")
+    df_summary["Affected status"] = config.get("Affected status")
 
     # getting the folder name of workbook
     # the folder name should return designated folder for either CUH or NUH
     # TODO this whole thing could get removed depending on if we continue to
     # use folders to differentiate between NUH and CUH workbooks
     folder_name = get_folder_of_input_file(workbook.name)
-    if folder_name == config_variable["info"]["CUH folder"]:
-        df_summary["Organisation"] = config_variable["info"][
-            "CUH Organisation"
-        ]
+    if folder_name == config.get("CUH folder"):
+        df_summary["Organisation"] = config.get("CUH Organisation")
+        df_summary["OrganisationID"] = config.get("CUH org ID")
 
-        df_summary["OrganisationID"] = config_variable["info"]["CUH org ID"]
-    elif folder_name == config_variable["info"]["NUH folder"]:
-        df_summary["Organisation"] = config_variable["info"][
-            "NUH Organisation"
-        ]
+    elif folder_name == config.get("NUH folder"):
+        df_summary["Organisation"] = config.get("NUH Organisation")
+        df_summary["OrganisationID"] = config.get("NUH org ID")
 
-        df_summary["OrganisationID"] = config_variable["info"]["NUH org ID"]
     else:
-        print("Running for the wrong folder")
+        print("Running for the wrong folder") # TODO change this
 
     return df_summary
 
@@ -372,7 +366,7 @@ def check_interpret_table(df_interpret, df_included, config):
 
         except AssertionError as msg:
             error_msg.append(str(msg))
-            print(msg)
+
     error_msg = "".join(error_msg)
 
     return error_msg # TODO add error_msg to db rather than return it
@@ -429,7 +423,7 @@ def check_interpreted_col(df):
                 ), f"Wrong interpreted column in row {row+1} of included sheet"
             except AssertionError as msg:
                 error_msg.append(str(msg))
-                print(msg)
+
         else:
             try:
                 assert df.loc[row, "Interpreted"] == "no", (
