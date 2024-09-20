@@ -120,6 +120,22 @@ def extract_clinvar_information(variant_row):
 
     return clinvar_dict
 
+def collect_clinvar_data_to_submit(clinvar_df):
+
+    variants = []
+    for index, variant in clinvar_df.iterrows():
+        clinvar_dict = extract_clinvar_information(variant)
+        # R444 is a pharmacogenomic test, so should be submitted differently
+        if variant["Rcode"] == "R444.1":
+            clinvar_dict = parp_inhibitor_submission(clinvar_dict)
+        variants.append(clinvar_dict)
+
+    cuh_variants = [x for x in variants if variant["OrganisationID"] == 288359]
+    nuh_variants = [x for x in variants if variant["OrganisationID"] == 509428]
+
+    return cuh_variants, nuh_variants
+
+
 
 def clinvar_api_request(url, header, var_list, org_guidelines_url):
     '''
@@ -189,23 +205,21 @@ def add_wb_to_db(workbook, cursor, conn):
     # add a record for the sample to workbooks table.
     query = ("INSERT INTO  [Shiredata].[dbo].[Workbooks]")
 
-
-def parse_args():
-    parser = argparse.ArgumentParser(
-        description="",
-        formatter_class=(
-            argparse.ArgumentDefaultsHelpFormatter
+def add_submission_id_to_db(response, cursor, conn):
+    '''
+    Inputs
+        Response (dict): API response
+    '''
+    if response.get('id'):
+        sub_id = response.get('id')
+        execute_query(
+            cursor,
+            conn,
+            f"UPDATE dbo.INCA SET [Submission ID] = '{sub_id}'"
         )
-    )
-    # TODO add help strings
-    parser.add_argument('--clinvar_api_key') # TODO delete this? find a better way of passing the API key?
-    parser.add_argument('--clinvar_testing')
-    parser.add_argument('--path_to_workbooks')
-    parser.add_argument('--config')
-    parser.add_argument('--uid')
-    parser.add_argument('--password')
-    args = parser.parse_args()
-    return args
+    else:
+        query = ()
+        # TODO handle fails, should we leave this blank
 
 def submit_to_clinvar():
 
@@ -235,7 +249,22 @@ def execute_query(cursor, conn, query):
     conn.commit()
     return cursor
 
-
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="",
+        formatter_class=(
+            argparse.ArgumentDefaultsHelpFormatter
+        )
+    )
+    # TODO add help strings
+    parser.add_argument('--clinvar_api_key') # TODO delete this? find a better way of passing the API key?
+    parser.add_argument('--clinvar-testing', action='store_true')
+    parser.add_argument('--path_to_workbooks')
+    parser.add_argument('--config')
+    parser.add_argument('--uid')
+    parser.add_argument('--password')
+    args = parser.parse_args()
+    return args
 
 def main():
     '''
@@ -243,10 +272,9 @@ def main():
     '''
     args = parse_args()
 
+    # Read files
     with open(args.config) as f:
         config = json.load(f)
-  
-
     # TODO change so this uses the dx file in 001
     # or should it !! could this be a nextflow thing !! much to think of
     with open(args.clinvar_api_key) as f:
@@ -256,93 +284,68 @@ def main():
 
     # Get workbooks
     print(f"Searching {args.path_to_workbooks}...")
-    workbooks = glob.glob(args.path_to_workbooks + "*.xlsx")
-    for workbook in workbooks:
-        workbook = load_workbook(workbook)
+    filenames = glob.glob(args.path_to_workbooks + "*.xlsx")
+    for filename in filenames:
+        workbook = load_workbook(filename)
         # add_wb_to_db(workbook, cursor, conn) # TODO
+
         # Get a df of data from each sheet in workbook:
-        # summary sheet, included variants sheet and any interpret sheets
-        df_summary = get_summary_fields(workbook, config, True)
-        df_included = get_included_fields(workbook)
-        df_interpret = get_report_fields(workbook, df_included)
-        # merge these to get one df
-        if not df_included.empty:
-            df_merged = pd.merge(df_included, df_summary, how="cross")
-        else:
-            df_merged = pd.concat([df_summary, df_included], axis=1)
+        df = get_workbook_data(workbook, config, True)
 
-        df_final = pd.merge(df_merged, df_interpret, on="HGVSc", how="left")
-        print(df_final)
-        add_variants_to_db(df_final, cursor, conn)
-
+        add_variants_to_db(df, cursor, conn)
+ 
     # Select all variants that have interpreted = yes and are not submitted
-    execute_query(
-        cursor,
+    clinvar_df = pd.read_sql(
         "SELECT * FROM dbo.INCA WHERE Interpreted = 'yes'"
-        "AND [Submission ID] is NULL AND [Accession ID] is NULL;"
+        "AND [Submission ID] is NULL AND [Accession ID] is NULL;",
+        conn
     )
-    cursor.execute(query)
-    conn.commit()
-    clinvar_df = pd.read_sql(query, conn)
-    conn.close()
+     
+    # Get clinvar information from each variant to be submitted
     # subset this df for testing TODO delete this subset in prod would want to do all
     clinvar_df = clinvar_df.iloc[:1]
-    variants = []
-    cuh_variants = []
-    nuh_variants = []
-    for index, variant in clinvar_df.iterrows():
-        clinvar_dict = extract_clinvar_information(variant)
-        # R444 is a pharmacogenomic test, so should be submitted differently
-        if variant["Rcode"] == "R444.1":
-            clinvar_dict = parp_inhibitor_submission(clinvar_dict)
-        variants.append(clinvar_dict)
+
+    
+
+    cuh_variants, nuh_variants = collect_clinvar_data_to_submit()
 
     # Submit all the variants to ClinVar
+    api_url = select_api_url(args.clinvar_testing, config)
 
-    api_url = select_api_url("True")
-    nuh_headers = {
-            "SP-API-KEY": nuh_api_key,
-            "Content-type": "application/json"
-        }
-
-    cuh_headers = {
+    if cuh_variants:
+        cuh_headers = {
             "SP-API-KEY": cuh_api_key,
             "Content-type": "application/json"
         }
-
-    cuh_variants = [x for x in variants if variant["OrganisationID"] == 288359]
-    nuh_variants = [x for x in variants if variant["OrganisationID"] == 509428]
-
-    # submit CUH variants
-    if cuh_variants:
         response = clinvar_api_request(
             api_url, cuh_headers, cuh_variants, config['CUH_acgs_url']
         )
-        response_dict = response.json()
+        add_submission_id_to_db(response.json(), cursor, conn)
 
-        if response_dict.get('id'):
-            sub_id = response_dict.get('id')
-            query = (f"UPDATE dbo.INCA SET [Submission ID] = '{sub_id}'")
-        else:
-            query = ()
-            # TODO handle fails, should we leave this blank
-
-    response_dict = response.json()
-    print(response_dict)
+    if nuh_variants:
+        nuh_headers = {
+            "SP-API-KEY": nuh_api_key,
+            "Content-type": "application/json"
+        }
+        response = clinvar_api_request(
+            api_url, nuh_headers, nuh_variants, config['NUH_acgs_url']
+        )
+        add_submission_id_to_db(response.json(), cursor, conn)
 
     # Select all with submission IDs but no accession IDs
-    execute_query = (
-        cursor,
-        conn,
+    # TODO figure out how to hold these until approved.
+    submission_df = pd.read_sql(
         "SELECT [Submission ID] FROM dbo.INCA WHERE Interpreted = 'yes'"
-        "AND [Submission ID] is not NULL AND [Accession ID] is NULL;"        
+        "AND [Submission ID] is not NULL AND [Accession ID] is NULL;",
+        conn
     )
-
-    submission_df = pd.read_sql(query, conn)
 
     # Need to make this work for CUH and NUH separately (blah)
     for index, variant in submission_df.iterrows():
         response = submission_status_check(variant["Submission ID"], headers, api_url)
+
+    # Close connection
+    conn.close()
 
 
 if __name__ == "__main__":

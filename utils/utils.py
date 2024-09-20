@@ -25,6 +25,33 @@ def get_folder_of_input_file(filename: str) -> str:
     return folder
 
 
+def get_workbook_data(workbook, config, unusual_sample_name):
+    '''
+    Function that runs functions to extract data from each sheet in the
+    workbook and merges it together into one dataframe
+    Inputs
+        workbook (openpyxl wb object): workbook being used
+        config (dict): config variable
+        unusual_sample_name (bool): whether the sample has an unusual name, if
+        True, will skip validating the sample name conventions.
+    Outputs
+        df_final (pd.DataFrame): data frame extracted from workbook
+    '''
+    # get data from summary sheet, included variants sheet and interpret sheets
+    df_summary = get_summary_fields(workbook, config, True)
+    df_included = get_included_fields(workbook)
+    df_interpret = get_report_fields(workbook, df_included)
+
+    # merge these to get one df
+    if not df_included.empty:
+        df_merged = pd.merge(df_included, df_summary, how="cross")
+    else:
+        df_merged = pd.concat([df_summary, df_included], axis=1)
+
+    df_final = pd.merge(df_merged, df_interpret, on="HGVSc", how="left")
+
+    return df_final
+
 def get_summary_fields(
     workbook: str, config_variable: dict, unusual_sample_name: bool
 ):  # -> tuple[pd.DataFrame, str]
@@ -322,26 +349,30 @@ def get_report_fields(workbook, df_included):
     return df_report, error_msg
 
 
-def select_api_url(testing):
-    # TODO reconfigure this whole thing !!
+def select_api_url(clinvar_testing, config):
     '''
     Select which API URL to use depending on if this is a test run or if
     variants are planned to be submitted to ClinVar
+    Inputs
+        clinvar_testing (bool): if True, use test API. If false, use live API
+        config (dict): config variable containing URLS for API
+    Outputs
+        api_url: clinvar api URL, either for the test API or the live API
     '''
-    if testing in ["True", True, "true"]:
-        api_url = "https://submit.ncbi.nlm.nih.gov/apitest/v1/submissions"
+    if clinvar_testing is True:
+        api_url = config.get("test_api_endpoint")
         print(
             f"Running in test mode, using {api_url}"
         )
-    elif testing in ["False", False, "false"]:
-        api_url = "https://submit.ncbi.nlm.nih.gov/api/v1/submissions/"
+    elif clinvar_testing is False:
+        api_url = config.get("live_api_endpoint")
         print(
             f"Running in live mode, using {api_url}"
         )
     else:
-        raise RuntimeError(
-            f"Value for testing {testing} neither True nor False. Please "
-            "specify whether this is a test run or not."
+        raise ValueError(
+            f"Value for testing {clinvar_testing} neither True nor False."
+            " Please specify whether this is a test run or not."
         )
     return api_url
 
