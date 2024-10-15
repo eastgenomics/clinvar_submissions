@@ -52,7 +52,7 @@ def update_db_for_parsed_wb(workbook, engine):
     engine.execute(
         "UPDATE testdirectory.inca_workbooks SET parse_status = TRUE "
         f"WHERE workbook_name = '{workbook}'"
-    )    
+    )
 
 
 def add_submission_id_to_db(response, engine, variants):
@@ -122,9 +122,9 @@ def add_error_to_db(engine, workbook, error):
     '''
     If a workbook failed parsing, add the reason to the inca_workbooks table
     Inputs
-        engine #TODO
-        workbook
-        error
+        engine (SQLAlchemy connection engine): connection to AWS db
+        workbook (str): file name of workbook
+        error (str): reason for workbook failing parsing
     Outputs
         None, adds data to db
     '''

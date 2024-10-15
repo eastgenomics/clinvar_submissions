@@ -3,59 +3,6 @@ import requests
 import json
 from requests.adapters import HTTPAdapter, Retry
 
-def modify_for_R444_clinvar_submission(clinvar_dict):
-    '''
-    Edit clinvar_submission dict to add drug responsiveness information if this
-    is a R444 case, as these are pharmacogenomic cases.
-    Inputs:
-        clinvar_dict (dict): dict of data to submit to clinvar for one variant
-    Outputs:
-        clinvar_dict (dict): dict of data to submit to clinvar for one variant,
-        modified to make suitable for a pharmacogenomic variant submission
-    '''
-    # TODO fix this based on feedback from ClinVar
-    print(clinvar_dict)
-    interpretation = clinvar_dict['clinicalSignificance'][
-        'clinicalSignificanceDescription'
-    ]
-    translate = {
-        "Pathogenic": "No function",
-        "Likely pathogenic": "Uncertain function",
-        "Uncertain significance": "Uncertain function",
-        "Likely benign": "Uncertain function",
-        "Benign": "Allele function"
-    }
-    drug_response_details = translate.get(interpretation)
-    # drug_response = translate.get(interpretation)
-
-    # if can't be translated, stop + add error to db
-    if drug_response_details == None:
-        # TODO this functionality can be added once an Error column is added
-        # to the db
-        query = ("") # TODO fill this in with appropriate query
-        return
-
-    clinvar_dict['clinicalSignificance'][
-        "clinicalSignificanceDescription"
-    ] = "drug response"
-    clinvar_dict['clinicalSignificance'][
-        "explanationOfDrugResponse"
-    ] = "Allele function"
-    clinvar_dict["conditionSet"] = {
-        "drugResponse": [
-            {
-            "condition": [{
-                "name": clinvar_dict["conditionSet"]["condition"][0]["name"]
-             }],
-            "db": "MedGen",
-            "id": "CN224080"
-            }
-        ]   
-    }
-
-    return clinvar_dict
-
-
 def extract_clinvar_information(variant_row):
     '''
     Extract information from Shire variant record and reformat into dictionary
@@ -110,7 +57,14 @@ def extract_clinvar_information(variant_row):
 
 def collect_clinvar_data_to_submit(clinvar_df):
     '''
-    TODO
+    Cycle through a dataframe, and extract variants for each row. Call the
+    function to reformat this into a dictionary for submission to ClinVar and
+    return a list of these dictionaries
+    Inputs
+        clinvar_df (pandas.Dataframe): variant dataframe
+    Outputs
+        variants (list): list of dictionaries with variant data for submission
+        to ClinVar
     '''
     variants = []
     for index, variant in clinvar_df.iterrows():
@@ -122,7 +76,10 @@ def collect_clinvar_data_to_submit(clinvar_df):
 
 def create_header(api_key):
     '''
-    TODO
+    Inputs:
+        api_key (str): API key for ClinVar
+    Outputs:
+        header (dict): Header for ClinVar API query
     '''
     header = {
         "SP-API-KEY": api_key,
@@ -172,7 +129,11 @@ def clinvar_api_request(url, header, var_list, org_guidelines_url):
 
 def process_submission_status(status, response):
     '''
-    TODO write docstring
+    Process response to API query about submission status.
+    Inputs
+        status (str): Overall submission status
+        response (dict): API response, which is a breakdown the response for
+        each variant or errors if submission failed.
     '''
     accession_ids = {}
 
