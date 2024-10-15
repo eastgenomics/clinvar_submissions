@@ -17,99 +17,270 @@
     "test_api_endpoint": "https://submit.ncbi.nlm.nih.gov/apitest/v1/submissions",
     "live_api_endpoint": "https://submit.ncbi.nlm.nih.gov/api/v1/submissions/",
     "field_cells": [
-        ["Associated disease", "C4"],
-        ["Known inheritance", "C5"],
-        ["Prevalence", "C6"],
-        ["HGVSc", "C3"],
-        ["Germline classification", "C26"],
-        ["PVS1", "H10"],
-        ["PVS1_evidence", "C10"],
-        ["PS1", "H11"],
-        ["PS1_evidence", "C11"],
-        ["PS2", "H12"],
-        ["PS2_evidence", "C12"],
-        ["PS3", "H13"],
-        ["PS3_evidence", "C13"],
-        ["PS4", "H14"],
-        ["PS4_evidence", "C14"],
-        ["PM1", "H15"],
-        ["PM1_evidence", "C15"],
-        ["PM2", "H16"],
-        ["PM2_evidence", "C16"],
-        ["PM3", "H17"],
-        ["PM3_evidence", "C17"],
-        ["PM4", "H18"],
-        ["PM4_evidence", "C18"],
-        ["PM5", "H19"],
-        ["PM5_evidence", "C19"],
-        ["PM6", "H20"],
-        ["PM6_evidence", "C20"],
-        ["PP1", "H21"],
-        ["PP1_evidence", "C21"],
-        ["PP2", "H22"],
-        ["PP2_evidence", "C22"],
-        ["PP3", "H23"],
-        ["PP3_evidence", "C23"],
-        ["PP4", "H24"],
-        ["PP4_evidence", "C24"],
-        ["BS1", "K16"],
-        ["BS1_evidence", "C16"],
-        ["BS2", "K12"],
-        ["BS2_evidence", "C12"],
-        ["BS3", "K13"],
-        ["BS3_evidence", "C13"],
-        ["BA1", "K9"],
-        ["BA1_evidence", "C9"],
-        ["BP2", "K17"],
-        ["BP2_evidence", "C17"],
-        ["BP3", "K18"],
-        ["BP3_evidence", "C18"],
-        ["BS4", "K21"],
-        ["BS4_evidence", "C21"],
-        ["BP1", "K22"],
-        ["BP1_evidence", "C22"],
-        ["BP4", "K23"],
-        ["BP4_evidence", "C23"],
-        ["BP5", "K24"],
-        ["BP5_evidence", "C24"],
-        ["BP7", "K25"],
-        ["BP7_evidence", "C25"]
+        [
+            "associated_disease",
+            "C4"
+        ],
+        [
+            "known_inheritance",
+            "C5"
+        ],
+        [
+            "prevalence",
+            "C6"
+        ],
+        [
+            "hgvsc",
+            "C3"
+        ],
+        [
+            "germline_classification",
+            "C26"
+        ],
+        [
+            "pvs1",
+            "H10"
+        ],
+        [
+            "pvs1_evidence",
+            "C10"
+        ],
+        [
+            "ps1",
+            "H11"
+        ],
+        [
+            "ps1_evidence",
+            "C11"
+        ],
+        [
+            "ps2",
+            "H12"
+        ],
+        [
+            "ps2_evidence",
+            "C12"
+        ],
+        [
+            "ps3",
+            "H13"
+        ],
+        [
+            "ps3_evidence",
+            "C13"
+        ],
+        [
+            "ps4",
+            "H14"
+        ],
+        [
+            "ps4_evidence",
+            "C14"
+        ],
+        [
+            "pm1",
+            "H15"
+        ],
+        [
+            "pm1_evidence",
+            "C15"
+        ],
+        [
+            "pm2",
+            "H16"
+        ],
+        [
+            "pm2_evidence",
+            "C16"
+        ],
+        [
+            "pm3",
+            "H17"
+        ],
+        [
+            "pm3_evidence",
+            "C17"
+        ],
+        [
+            "pm4",
+            "H18"
+        ],
+        [
+            "pm4_evidence",
+            "C18"
+        ],
+        [
+            "pm5",
+            "H19"
+        ],
+        [
+            "pm5_evidence",
+            "C19"
+        ],
+        [
+            "pm6",
+            "H20"
+        ],
+        [
+            "pm6_evidence",
+            "C20"
+        ],
+        [
+            "pp1",
+            "H21"
+        ],
+        [
+            "pp1_evidence",
+            "C21"
+        ],
+        [
+            "pp2",
+            "H22"
+        ],
+        [
+            "pp2_evidence",
+            "C22"
+        ],
+        [
+            "pp3",
+            "H23"
+        ],
+        [
+            "pp3_evidence",
+            "C23"
+        ],
+        [
+            "pp4",
+            "H24"
+        ],
+        [
+            "pp4_evidence",
+            "C24"
+        ],
+        [
+            "bs1",
+            "K16"
+        ],
+        [
+            "bs1_evidence",
+            "C16"
+        ],
+        [
+            "bs2",
+            "K12"
+        ],
+        [
+            "bs2_evidence",
+            "C12"
+        ],
+        [
+            "bs3",
+            "K13"
+        ],
+        [
+            "bs3_evidence",
+            "C13"
+        ],
+        [
+            "ba1",
+            "K9"
+        ],
+        [
+            "ba1_evidence",
+            "C9"
+        ],
+        [
+            "bp2",
+            "K17"
+        ],
+        [
+            "bp2_evidence",
+            "C17"
+        ],
+        [
+            "bp3",
+            "K18"
+        ],
+        [
+            "bp3_evidence",
+            "C18"
+        ],
+        [
+            "bs4",
+            "K21"
+        ],
+        [
+            "bs4_evidence",
+            "C21"
+        ],
+        [
+            "bp1",
+            "K22"
+        ],
+        [
+            "bp1_evidence",
+            "C22"
+        ],
+        [
+            "bp4",
+            "K23"
+        ],
+        [
+            "bp4_evidence",
+            "C23"
+        ],
+        [
+            "bp5",
+            "K24"
+        ],
+        [
+            "bp5_evidence",
+            "C24"
+        ],
+        [
+            "bp7",
+            "K25"
+        ],
+        [
+            "bp7_evidence",
+            "C25"
+        ]
     ],
-    "matched_strength" :[
-        ["PVS", "Very Strong"],
-        ["PS", "Strong"],
-        ["PM", "Moderate"],
-        ["PP", "Supporting"],
-        ["BS", "Supporting"],
-        ["BA", "Stand-Alone"],
-        ["BP", "Supporting"]
-    ],
+    "matched_strength": {
+        "PVS": "Very Strong",
+        "PS": "Strong",
+        "PM": "Moderate",
+        "PP": "Supporting",    
+        "BS": "Supporting",
+        "BA": "Stand-Alone",
+        "BP": "Supporting"
+    },
     "acgs_criteria": [
-        "PVS1",
-        "PS1",
-        "PS2",
-        "PS3",
-        "PS4",
-        "PM1",
-        "PM2",
-        "PM3",
-        "PM4",
-        "PM5",
-        "PM6",
-        "PP1",
-        "PP2",
-        "PP3",
-        "PP4",
-        "BS2",
-        "BS3",
-        "BS1",
-        "BP2",
-        "BP3",
-        "BS4",
-        "BP1",
-        "BP4",
-        "BP5",
-        "BP7"
+        "pvs1",
+        "ps1",
+        "ps2",
+        "ps3",
+        "ps4",
+        "pm1",
+        "pm2",
+        "pm3",
+        "pm4",
+        "pm5",
+        "pm6",
+        "pp1",
+        "pp2",
+        "pp3",
+        "pp4",
+        "bs2",
+        "bs3",
+        "bs1",
+        "bp2",
+        "bp3",
+        "bs4",
+        "bp1",
+        "bp4",
+        "bp5",
+        "bp7"
     ],
     "strength_dropdown": [
         "Very Strong",
@@ -126,5 +297,4 @@
         "Supporting",
         "NA"
     ]
-
 }

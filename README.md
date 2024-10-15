@@ -1,11 +1,7 @@
 # clinvar submissions process
 
-> [!WARNING]  
-> Shire is a live database, so be careful when running!
-
-
 ## What does this script do?
-This script searches a given folder for an Excel variant workbook, extracts those variants and adds to the Shire database in the dbo.INCA table. It then checks all the variants in the dbo.INCA table for an Interpreted status of 'yes' and submits those that have been interpreted to ClinVar.
+This script searches a given folder for an Excel variant workbook, extracts those variants and adds to the INCA table. It then checks all the variants in the INCA table for an Interpreted status of 'yes' and submits those that have been interpreted to ClinVar.
 
 # Process map
 

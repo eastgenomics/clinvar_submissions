@@ -2,6 +2,7 @@ import dxpy
 import re
 from datetime import datetime, date
 from dateutil import parser as date_parser
+from utils.database_actions import add_error_to_db
 import pandas as pd
 import numpy as np
 import os
@@ -25,7 +26,7 @@ def get_folder_of_input_file(filename: str) -> str:
     return folder
 
 
-def get_workbook_data(workbook, config, unusual_sample_name):
+def get_workbook_data(workbook, config, unusual_sample_name, filename, file, engine):
     '''
     Function that runs functions to extract data from each sheet in the
     workbook and merges it together into one dataframe
@@ -34,13 +35,22 @@ def get_workbook_data(workbook, config, unusual_sample_name):
         config (dict): config variable
         unusual_sample_name (bool): whether the sample has an unusual name, if
         True, will skip validating the sample name conventions.
+        filename (str): string of workbook name with preceding path
+        file (str): string of workbook name without preceding path
+        engine (SQLAlchemy engine): connection to database
     Outputs
         df_final (pd.DataFrame): data frame extracted from workbook
     '''
     # get data from summary sheet, included variants sheet and interpret sheets
-    df_summary = get_summary_fields(workbook, config, unusual_sample_name)
-    df_included = get_included_fields(workbook)
-    df_interpret = get_report_fields(workbook, df_included)
+    df_summary, error = get_summary_fields(workbook, config, unusual_sample_name, filename)
+    if error is not None:
+        add_error_to_db(engine, file, error)
+        return None
+    df_included = get_included_fields(workbook, filename)
+    df_interpret, error = get_report_fields(workbook, config, df_included)
+    if error is not None:
+        add_error_to_db(engine, file, error)
+        return None
 
     # merge these to get one df
     if not df_included.empty:
@@ -48,12 +58,22 @@ def get_workbook_data(workbook, config, unusual_sample_name):
     else:
         df_merged = pd.concat([df_summary, df_included], axis=1)
 
-    df_final = pd.merge(df_merged, df_interpret, on="HGVSc", how="left")
+    df_final = pd.merge(df_merged, df_interpret, on="hgvsc", how="left")
+
+    df_final["germline_classification"] = df_final[
+        "germline_classification"
+        ].replace(
+            {
+                "Likely Pathogenic": "Likely pathogenic",
+                "Uncertain Significance": "Uncertain significance",
+                "Likely Benign": "Likely benign",
+            }
+        )
 
     return df_final
 
 
-def get_summary_fields(workbook, config, unusual_sample_name):
+def get_summary_fields(workbook, config, unusual_sample_name, filename):
     '''
     Extract data from summary sheet of variant workbook
     Inputs
@@ -61,25 +81,27 @@ def get_summary_fields(workbook, config, unusual_sample_name):
         config (dict): config variable
         unusual_sample_name (bool): whether the sample has an unusual name, if
         True, will skip validating the sample name conventions.
+        filename (str): string of workbook name
     Outputs
         df_summary (pd.DataFrame): data frame extracted from workbook summary
         sheet
     '''
     sampleID = workbook["summary"]["B1"].value
+
     clinical_indication = workbook["summary"]["F1"].value
+    # Handle cases with multiple clinical indications
     if ";" in clinical_indication:
-        split_CI = clinical_indication.split(";")
-        indication = []
-        Rcode = []
-        for each in split_CI:
-            remove_R = each.split("_")[1]
-            indication.append(remove_R)
-            Rcode.append(each.split("_")[0])
-        new_CI = ";".join(indication)
-        combined_Rcode = ";".join(Rcode)
+        split_ci = clinical_indication.split(";")
+        condition_names = []
+        test_codes = []
+        for ci in split_ci:
+            condition_names.append(ci.split("_")[1])
+            test_codes.append(ci.split("_")[0])
+        condition_names = ";".join(condition_names)
+        test_codes = ";".join(test_codes)
     else:
-        new_CI = clinical_indication.split("_")[1]
-        combined_Rcode = clinical_indication.split("_")[0]
+        test_codes = clinical_indication.split("_")[0]
+        condition_names = clinical_indication.split("_")[1]
 
     panel = workbook["summary"]["F2"].value
     date_evaluated = workbook["summary"]["G22"].value
@@ -96,29 +118,29 @@ def get_summary_fields(workbook, config, unusual_sample_name):
             instrument, sample, batch, testcode, probeset
         )
     d = {
-        "Instrument ID": instrument,
-        "Specimen ID": sample,
-        "Batch ID": batch,
-        "Test code": testcode,
-        "Probeset ID": probeset,
-        "Rcode": combined_Rcode,
-        "Preferred condition name": new_CI,
-        "Panel": panel,
-        "Ref_genome": ref_genome,
-        "Date last evaluated": date_evaluated,
+        "instrument_id": instrument,
+        "specimen_id": sample,
+        "batch_id": batch,
+        "test_code": testcode,
+        "probeset_id": probeset,
+        "r_code": test_codes,
+        "preferred_condition_name": condition_names,
+        "panel": panel,
+        "ref_genome": ref_genome,
+        "date_last_evaluated": date_evaluated,
     }
     df_summary = pd.DataFrame([d])
 
     # If no date last evaluated, use today's date
-    df_summary['Date last evaluated'] = df_summary[
-        'Date last evaluated'
+    df_summary['date_last_evaluated'] = df_summary[
+        'date_last_evaluated'
     ].fillna(str(date.today()))
 
     # Catch if workbook has value for date last evaluated which is not datetime
     # compatible
     # Can test with first item in series as all rows have the same date value
     try:
-        r = bool(date_parser.parse(str(df_summary['Date last evaluated'][0])))
+        r = bool(date_parser.parse(str(df_summary['date_last_evaluated'][0])))
     except date_parser._parser.ParserError:
         error_msg = (
             f"Value for date last evaluated \"{date_evaluated}\" is not "
@@ -126,51 +148,47 @@ def get_summary_fields(workbook, config, unusual_sample_name):
         )
         return df_summary, error_msg
 
-    df_summary["Date last evaluated"] = pd.to_datetime(
-        df_summary["Date last evaluated"]
+    df_summary["date_last_evaluated"] = pd.to_datetime(
+        df_summary["date_last_evaluated"]
     )
-    df_summary["Institution"] = config.get("Institution")
-    df_summary["Collection method"] = config.get("Collection method")
-    df_summary["Allele origin"] = config.get("Allele origin")
-    df_summary["Affected status"] = config.get("Affected status")
+    df_summary["institution"] = config.get("Institution")
+    df_summary["collection_method"] = config.get("Collection method")
+    df_summary["allele_origin"] = config.get("Allele origin")
+    df_summary["affected_status"] = config.get("Affected status")
 
     # getting the folder name of workbook
     # the folder name should return designated folder for either CUH or NUH
     # TODO this whole thing could get removed depending on if we continue to
     # use folders to differentiate between NUH and CUH workbooks
-    folder_name = get_folder_of_input_file(workbook.name)
+    folder_name = get_folder_of_input_file(filename)
     if folder_name == config.get("CUH folder"):
-        df_summary["Organisation"] = config.get("CUH Organisation")
-        df_summary["OrganisationID"] = config.get("CUH org ID")
+        df_summary["organisation"] = config.get("CUH Organisation")
+        df_summary["organisation_id"] = config.get("CUH org ID")
 
     elif folder_name == config.get("NUH folder"):
-        df_summary["Organisation"] = config.get("NUH Organisation")
-        df_summary["OrganisationID"] = config.get("NUH org ID")
+        df_summary["organisation"] = config.get("NUH Organisation")
+        df_summary["organisation_id"] = config.get("NUH org ID")
 
     else:
-        print("Running for the wrong folder") # TODO change this
+        print("Running for the wrong folder") # TODO cDate last evaluatedhange this
 
-    return df_summary
+    return df_summary, error_msg
 
 
-def get_included_fields(workbook) -> pd.DataFrame:
+def get_included_fields(workbook, filename) -> pd.DataFrame:
     '''
     Extract data from included sheet of variant workbook
     Inputs:
         workbook (openpyxl wb object): workbook being used
+        filename (str): string of workbook name
     Outputs
         df_included (pd.DataFrame): data frame extracted from included sheet
     '''
     num_variants = workbook["summary"]["C38"].value
-    interpreted_col = get_col_letter(workbook["included"], "Interpreted")
     df = pd.read_excel(
-        workbook,
+        filename,
         sheet_name="included",
-        usecols=f"A:{interpreted_col}",
-        nrows=num_variants,
-    )
-    df_included = df[
-        [
+        usecols= [
             "CHROM",
             "POS",
             "REF",
@@ -180,28 +198,35 @@ def get_included_fields(workbook) -> pd.DataFrame:
             "Consequence",
             "Interpreted",
             "Comment",
-        ]
-    ].copy()
-    if len(df_included["Interpreted"].value_counts()) > 0:
-        df_included["Interpreted"] = df_included["Interpreted"].str.lower()
-    df_included.rename(
+        ],
+        nrows=num_variants,
+    )
+    if len(df["Interpreted"].value_counts()) > 0:
+        df["Interpreted"] = df["Interpreted"].str.lower()
+
+    # Rename to match INCA db columns
+    df.rename(
         columns={
-            "CHROM": "Chromosome",
-            "SYMBOL": "Gene symbol",
-            "POS": "Start",
-            "REF": "Reference allele",
-            "ALT": "Alternate allele",
+            "CHROM": "chromosome",
+            "SYMBOL": "gene_symbol",
+            "POS": "start",
+            "REF": "reference_allele",
+            "ALT": "alternate_allele",
+            "HGVSc": "hgvsc",
+            "Interpreted": "interpreted",
+            "Consequence": "consequence",
+            "Comment": "classification_comment"
         },
         inplace=True,
     )
-    df_included["Local ID"] = ""
-    for row in range(df_included.shape[0]):
+    df["local_id"] = ""
+    for row in range(df.shape[0]):
         unique_id = uuid.uuid1()
-        df_included.loc[row, "Local ID"] = f"uid_{unique_id.time}"
+        df.loc[row, "local_id"] = f"uid_{unique_id.time}"
         time.sleep(0.5)
-    df_included["Linking ID"] = df_included["Local ID"]
+    df["linking_id"] = df["local_id"]
 
-    return df_included
+    return df
 
 
 def get_report_fields(workbook, config, df_included):
@@ -232,46 +257,83 @@ def get_report_fields(workbook, config, df_included):
     df_report.reset_index(drop=True, inplace=True)
     error_msg = None
     if not df_report.empty:
-        error_msg = check_interpret_table(df_report, df_included)
+        error_msg = check_interpret_table(df_report, df_included, config)
+        print(error_msg)
     if not error_msg:
-        # put strength as nan if it is 'NA'
-        for row in range(df_report.shape[0]):
-            for column in range(5, df_report.shape[1], 2):
-                if df_report.iloc[row, column] == "NA":
-                    df_report.iloc[row, column] = np.nan
+        acgs = config.get("acgs_criteria")
 
-        # removing evidence value if no strength
-        for row in range(df_report.shape[0]):
-            for column in range(5, df_report.shape[1], 2):
-                if df_report.isnull().iloc[row, column]:
-                    df_report.iloc[row, column + 1] = np.nan
+        df_report = make_acgs_criteria_null_if_not_applied(df_report, acgs)
 
-        # getting comment on classification for clinvar submission
-        matched_strength = config.get("matched_strength")
-        df_report["Comment on classification"] = ""
-        for row in range(df_report.shape[0]):
-            evidence = []
-            for column in range(5, df_report.shape[1] - 1, 2):
-                if not df_report.isnull().iloc[row, column]:
-                    evidence.append(
-                        [
-                            df_report.columns[column],
-                            df_report.iloc[row, column],
-                        ]
-                    )
-            for index, value in enumerate(evidence):
-                for st1, st2 in matched_strength:
-                    if st1 in value[0] and st2 == value[1]:
-                        evidence[index][1] = ""
-            evidence_pair = []
-            for e in evidence:
-                evidence_pair.append("_".join(e).rstrip("_"))
-            comment_on_classification = ",".join(evidence_pair)
-            df_report.iloc[
-                row, df_report.columns.get_loc("Comment on classification")
-            ] = comment_on_classification
-
+        df_report = add_comment_on_classification(df_report, acgs, config)
+    print(error_msg)
     return df_report, error_msg
+
+
+def make_acgs_criteria_null_if_not_applied(df, acgs_criteria):
+    '''
+    The workbook has a value "NA" for ACGS criteria that was not applied. This
+    function finds any variant row that had "NA" for a criteria and changes it
+    to null. If an ACGS criteria is null, the evidence column for that column
+    should also be null, so this function also sets any evidence field for a
+    criteria that was not applied to null.
+    Inputs:
+        df (pd.Dataframe): a dataframe with a column for each ACGS criterion
+        and each row the strength of that criteria applied to the row's variant
+        acgs_criteria (list): list of ACGS criteria that make up the columns in
+        the df
+    Outputs:
+        df (pd.Dataframe): the same dataframe, now with null instead of "NA"
+        for criteria that were not applied, and a null value for evidence for
+        all criteria not applied.
+    '''
+    for index, row, in df.iterrows():
+        for criterion in acgs_criteria:
+            if row[criterion] == "NA":
+                df.loc[index, criterion] = np.nan
+            if pd.isna(row[criterion]):
+                df.loc[index, criterion + "_evidence"] = np.nan
+    return df
+
+
+def add_comment_on_classification(df, acgs_criteria, config):
+    '''
+    This function should take in a df with a column for each ACGS criteria with
+    the values in that column being the strength of the criteria and return the
+    same df but with a value in the comment_on_classification column that
+    summarises all the ACGS criteria applied for each variant.
+    If the criterion has the same strength as default for that criterion, the
+    strength is not included, if it differs it is included
+    e.g. if the df has:
+        pvs1    pm3         pp3
+        null    supporting  supporting
+    the comment_on_classification should be PM3_Supporting,PP3
+
+    Inputs:
+        df (pd.Dataframe): dataframe with a column for each ACGS criterion and
+        each row the strength of that criteria applied to the row's variant
+        acgs_criteria (list): list of ACGS criteria that make up the columns in
+        the df
+        config (dict): config file as dict, contains a dict mapping ACGS
+        criteria to their default strength
+    Outputs:
+        df (pd.Dataframe): the same dataframe, now with a value in the
+        comment_on_classification column which summarises all the ACGS criteria
+        applied for the variants
+    '''
+    matched_strength = config.get("matched_strength")
+    df["comment_on_classification"] = ""
+
+    for index, row, in df.iterrows():
+        acgs = {}
+        for criterion in acgs_criteria:
+            if pd.notna(row[criterion]):
+                acgs[criterion.upper()] = row[criterion]
+                if matched_strength[criterion.upper()[:-1]] == row[criterion]:
+                    acgs[criterion.upper()] = ""
+
+        c = ','.join([f"{k}_{v}" if v != "" else k for k, v in acgs.items()])
+        df.loc[index, "comment_on_classification"] = c
+    return df
 
 
 def select_api_url(clinvar_testing, config):
@@ -302,23 +364,6 @@ def select_api_url(clinvar_testing, config):
     return api_url
 
 
-def get_col_letter(worksheet, col_name):
-    '''
-    Getting the column letter with specific col name
-    Inputs
-        worksheet (openpyxl object): current worksheet
-        col_name (str): name of column
-    Outputs
-        col_letter (str): letter of column
-    '''
-    col_letter = None
-    for column_cell in worksheet.iter_cols(1, worksheet.max_column):
-        if column_cell[0].value == col_name:
-            col_letter = column_cell[0].column_letter
-
-    return col_letter
-
-
 def check_interpret_table(df_interpret, df_included, config):
     '''
     Check if ACMG classification and HGVSc are correctly
@@ -336,9 +381,9 @@ def check_interpret_table(df_interpret, df_included, config):
     for row in range(df_interpret.shape[0]):
         try:
             assert (
-                df_interpret.loc[row, "Germline classification"].notna()
+                pd.notna(df_interpret.loc[row, "germline_classification"])
             ), "empty ACMG classification in interpret table"
-            assert df_interpret.loc[row, "Germline classification"] in [
+            assert df_interpret.loc[row, "germline_classification"] in [
                 "Pathogenic",
                 "Likely Pathogenic",
                 "Uncertain Significance",
@@ -346,22 +391,22 @@ def check_interpret_table(df_interpret, df_included, config):
                 "Benign",
             ], "wrong ACMG classification in interpret table"
             assert (
-                df_interpret.loc[row, "HGVSc"].notna()
+                pd.notna(df_interpret.loc[row, "hgvsc"])
             ), "empty HGVSc in interpret table"
-            assert df_interpret.loc[row, "HGVSc"] in list(df_included["HGVSc"]), (
+            assert df_interpret.loc[row, "hgvsc"] in list(df_included["hgvsc"]), (
                 "HGVSc in interpret table does not match with that in "
                 "included sheet"
             )
             acgs_criteria = config.get("acgs_criteria")
             for criteria in acgs_criteria:
-                if df_interpret.loc[row, criteria].notna():
+                if pd.notna(df_interpret.loc[row, criteria]):
                     assert (
                         df_interpret.loc[row, criteria] in strength_dropdown
                     ), f"Wrong strength in {criteria}"
 
-            if df_interpret.loc[row, "BA1"].notna():
+            if pd.notna(df_interpret.loc[row, "ba1"]):
                 assert (
-                    df_interpret.loc[row, "BA1"] in BA1_dropdown
+                    df_interpret.loc[row, "ba1"] in BA1_dropdown
                 ), "Wrong strength in BA1"
 
         except AssertionError as msg:
@@ -369,7 +414,11 @@ def check_interpret_table(df_interpret, df_included, config):
 
     error_msg = "".join(error_msg)
 
+    if error_msg == "":
+        error_msg = None
+
     return error_msg # TODO add error_msg to db rather than return it
+
 
 def checking_sheets(workbook):
     '''
@@ -419,24 +468,27 @@ def check_interpreted_col(df):
         if row in row_yes:
             try:
                 assert (
-                    df.loc[row, "Germline classification"].notna()
+                    df.loc[row, "germline_classification"].notna()
                 ), f"Wrong interpreted column in row {row+1} of included sheet"
             except AssertionError as msg:
                 error_msg.append(str(msg))
 
         else:
             try:
-                assert df.loc[row, "Interpreted"] == "no", (
+                assert df.loc[row, "interpreted"] == "no", (
                     f"Wrong interpreted column dropdown in row {row+1} "
                     "of included sheet"
                 )
                 assert (
-                    df.loc[row, "Germline classification"].isna()
+                    df.loc[row, "germline_classification"].isna()
                 ), f"Wrong interpreted column in row {row+1} of included sheet"
             except AssertionError as msg:
                 error_msg.append(str(msg))
 
     error_msg = " ".join(error_msg)
+
+    if error_msg == "":
+        error_msg = None
 
     return error_msg  # TODO add error_msg to db rather than return it
 
@@ -529,4 +581,4 @@ def submission_status_check(submission_id, headers, api_url):
             file_content = json.loads(f_response_content)
             status_response = file_content
 
-    return status_response
+    return status, status_response
