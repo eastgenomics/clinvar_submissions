@@ -77,6 +77,7 @@ def collect_clinvar_data_to_submit(clinvar_df):
 
 def create_header(api_key):
     '''
+    Format header for ClinVar API submission
     Inputs:
         api_key (str): API key for ClinVar
     Outputs:

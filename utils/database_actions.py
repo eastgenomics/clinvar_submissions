@@ -65,8 +65,8 @@ def add_submission_id_to_db(response, engine, variants):
     Outputs
         None, adds data to db
     '''
-    if response.get('id'):
-        sub_id = response.get('id')
+    sub_id = response.get('id')
+    if sub_id:
         add_quotes = [f"'{x}'" for x in variants]
         submitted_variants = ", ".join(add_quotes)
         with engine.begin() as conn:
