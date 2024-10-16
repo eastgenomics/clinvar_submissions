@@ -153,10 +153,8 @@ def main():
                 print(f"{file} has already been parsed. Skipping...")
 
     # Select all variants that have interpreted = yes and are not submitted
-    # Also exclude MUTYH carrier testing and R444 pharmacogenomic variants.
-    # These cannot currently be submitted because of a. no clinical indication
-    # in workbook/no affected status and b. a ClinVar API bug
-    exclude = " AND panel != '_HGNC:7527' AND test_code !='R444.1'"
+    # Also exclude any variants meeting exclusion criteria in the config
+    exclude = config["exclude"]
     cuh_df = db.select_variants_from_db(288359, engine, "NULL", exclude)
     nuh_df = db.select_variants_from_db(509428, engine, "NULL", exclude)
     print(
