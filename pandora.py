@@ -7,10 +7,9 @@ import json
 import argparse
 import os.path
 import glob
-from utils.utils import *
-from utils.clinvar import *
-from utils.database_actions import *
-import numpy as np
+import utils.utils as utils
+import utils.clinvar as clinvar
+import utils.database_actions as db
 from openpyxl import load_workbook
 from sqlalchemy import create_engine
 
@@ -75,9 +74,9 @@ def main():
     cuh_api_key = api_keys["cuh"]
     nuh_api_key = api_keys["nuh"]
 
-    cuh_header = create_header(cuh_api_key)
-    nuh_header = create_header(nuh_api_key)
-    api_url = select_api_url(args.clinvar_testing, config)
+    cuh_header = clinvar.create_header(cuh_api_key)
+    nuh_header = clinvar.create_header(nuh_api_key)
+    api_url = utils.select_api_url(args.clinvar_testing, config)
 
     # Create SQLAlchemy engine to connect to AWS database
     url = (
@@ -88,8 +87,8 @@ def main():
     engine = create_engine(url)
 
     # Identify cases in database which have a submission ID but no accession ID
-    cuh_submission_df = select_variants_from_db(288359, engine, "NOT NULL")
-    nuh_submission_df = select_variants_from_db(509428, engine, "NOT NULL")
+    cuh_submission_df = db.select_variants_from_db(288359, engine, "NOT NULL")
+    nuh_submission_df = db.select_variants_from_db(509428, engine, "NOT NULL")
 
     print(
         f"Found {nuh_submission_df.shape[0]} with submission IDs but no "
@@ -104,16 +103,18 @@ def main():
     for df in [cuh_submission_df, nuh_submission_df]:
         if not df.empty:
             for index, variant in df.iterrows():
-                status, response = submission_status_check(
+                status, response = utils.submission_status_check(
                     variant["submission_id"], df.header, api_url
                 )
-                accession_ids = process_submission_status(status, response)
+                accession_ids = clinvar.process_submission_status(
+                    status, response
+                )
 
                 if accession_ids != {}:
-                    add_accession_ids_to_db(accession_ids, engine)
+                    db.add_accession_ids_to_db(accession_ids, engine)
 
     # Re-run any failed workbooks
-    workbook_df = select_workbooks_from_db(engine, "parse_status = FALSE")
+    workbook_df = db.select_workbooks_from_db(engine, "parse_status = FALSE")
     if not workbook_df.empty:
         print("Found these:")
 
@@ -124,7 +125,7 @@ def main():
         print(f"Found {len(filenames)} workbooks")
 
         # Get previously parsed workbooks
-        parsed_workbook_df = select_workbooks_from_db(
+        parsed_workbook_df = db.select_workbooks_from_db(
         engine, f"parse_status = TRUE"
         )
         for filename in filenames:
@@ -137,17 +138,17 @@ def main():
                     f"Parsing {file}..."
                 )
                 workbook = load_workbook(filename)
-                add_wb_to_db(file, "NULL", engine.connect())
+                db.add_wb_to_db(file, "NULL", engine.connect())
 
                 # Get a df of data from each sheet in workbook:
-                df = get_workbook_data(
+                df = utils.get_workbook_data(
                     workbook, config, True, filename, file, engine.connect()
                 )
                 if df is not None:
                     if not df.empty:
                         print(f"Adding {df.shape[0]} variants to INCA db...")
-                        add_variants_to_db(df, engine.connect())
-                        update_db_for_parsed_wb(file, engine.connect())
+                        db.add_variants_to_db(df, engine.connect())
+                        db.update_db_for_parsed_wb(file, engine.connect())
             else:
                 print(f"{file} has already been parsed. Skipping...")
 
@@ -156,8 +157,8 @@ def main():
     # These cannot currently be submitted because of a. no clinical indication
     # in workbook/no affected status and b. a ClinVar API bug
     exclude = " AND panel != '_HGNC:7527' AND test_code !='R444.1'"
-    cuh_df = select_variants_from_db(288359, engine, "NULL", exclude)
-    nuh_df = select_variants_from_db(509428, engine, "NULL", exclude)
+    cuh_df = db.select_variants_from_db(288359, engine, "NULL", exclude)
+    nuh_df = db.select_variants_from_db(509428, engine, "NULL", exclude)
     print(
         f"Found {nuh_df.shape[0]} interpreted variants to submit for NUH.\n"
         f"Found {cuh_df.shape[0]} interpreted variants to submit for CUH."
@@ -168,10 +169,10 @@ def main():
     # Get clinvar information from each variant and submit
     for df in [cuh_df, nuh_df]:
         if not df.empty:
-            variants = collect_clinvar_data_to_submit(df)
-            r = clinvar_api_request(api_url, df.header, variants, df.url)
+            variants = clinvar.collect_clinvar_data_to_submit(df)
+            r = clinvar.clinvar_api_request(api_url, df.header, variants, df.url)
             if args.clinvar_testing is False:
-                add_submission_id_to_db(r.json(), engine, df['local_id'].values)
+                db.add_submission_id_to_db(r.json(), engine, df['local_id'].values)
 
 
 if __name__ == "__main__":
