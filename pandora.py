@@ -167,7 +167,9 @@ def main():
     # Get clinvar information from each variant and submit
     for df in [cuh_df, nuh_df]:
         if not df.empty:
-            variants = clinvar.collect_clinvar_data_to_submit(df)
+            variants = clinvar.collect_clinvar_data_to_submit(
+                df, config['ref_genomes']
+            )
             r = clinvar.clinvar_api_request(api_url, df.header, variants, df.url)
             if args.clinvar_testing is False:
                 db.add_submission_id_to_db(r.json(), engine, df['local_id'].values)

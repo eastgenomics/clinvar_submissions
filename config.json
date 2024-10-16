@@ -17,6 +17,10 @@
     "test_api_endpoint": "https://submit.ncbi.nlm.nih.gov/apitest/v1/submissions",
     "live_api_endpoint": "https://submit.ncbi.nlm.nih.gov/api/v1/submissions/",
     "exclude": " AND panel != '_HGNC:7527' AND test_code !='R444.1'",
+    "ref_genomes": [
+        "GRCh37.p13",
+        "GRCh38.p13"
+    ],
     "field_cells": [
         [
             "associated_disease",

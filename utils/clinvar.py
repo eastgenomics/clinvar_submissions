@@ -3,18 +3,19 @@ import requests
 import json
 from requests.adapters import HTTPAdapter, Retry
 
-def extract_clinvar_information(variant_row):
+def extract_clinvar_information(variant_row, ref_genomes):
     '''
     Extract information from Shire variant record and reformat into dictionary
     Inputs:
         variant: row from variant dataframe with data for one variant
+        ref_genomes (list): list of valid reference genome values from config 
     outputs:
         clinvar_dict: dictionary of data to submit to clinvar
     '''
     if pd.isna(variant_row["comment_on_classification"]):
         variant_row["comment_on_classification"] = ""
 
-    if variant_row["ref_genome"] not in ["GRCh37.p13", "GRCh38.p13"]:
+    if variant_row["ref_genome"] not in ref_genomes:
         raise ValueError("Invalid genome build")
 
     assembly = variant_row["ref_genome"].split('.')[0]
