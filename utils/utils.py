@@ -1,6 +1,5 @@
-import dxpy
 import re
-from datetime import datetime, date
+from datetime import date
 from dateutil import parser as date_parser
 from utils.database_actions import add_error_to_db
 import pandas as pd
@@ -85,6 +84,7 @@ def get_summary_fields(workbook, config, unusual_sample_name, filename):
     Outputs
         df_summary (pd.DataFrame): data frame extracted from workbook summary
         sheet
+        err_msg (str): error message
     '''
     sampleID = workbook["summary"]["B1"].value
 
@@ -286,6 +286,8 @@ def make_acgs_criteria_null_if_not_applied(df, acgs_criteria):
         for criteria that were not applied, and a null value for evidence for
         all criteria not applied.
     '''
+    df[acgs_criteria] = df[acgs_criteria] 
+
     for index, row, in df.iterrows():
         for criterion in acgs_criteria:
             if row[criterion] == "NA":
@@ -331,8 +333,12 @@ def add_comment_on_classification(df, acgs_criteria, config):
                 if matched_strength[criterion.upper()[:-1]] == row[criterion]:
                     acgs[criterion.upper()] = ""
 
-        c = ','.join([f"{k}_{v}" if v != "" else k for k, v in acgs.items()])
-        df.loc[index, "comment_on_classification"] = c
+        comment = ','.join([
+            f"{criterion}_{strength}"if strength != ""
+            else criterion for criterion, strength in acgs.items()
+        ])
+        df.loc[index, "comment_on_classification"] = comment
+
     return df
 
 
