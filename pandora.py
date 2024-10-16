@@ -153,7 +153,7 @@ def main():
                 print(f"{file} has already been parsed. Skipping...")
 
     # Select all variants that have interpreted = yes and are not submitted
-    # Also exclude any variants meeting exclusion criteria in the config
+    # Also exclude any variants meeting exclusion criteria set in the config
     exclude = config["exclude"]
     cuh_df = db.select_variants_from_db(288359, engine, "NULL", exclude)
     nuh_df = db.select_variants_from_db(509428, engine, "NULL", exclude)
