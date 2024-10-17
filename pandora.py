@@ -41,8 +41,12 @@ def parse_args():
         help='JSON containing CUH and NUH ClinVar API keys'
         )
     parser.add_argument(
-        '--clinvar-testing', action='store_true',
+        '--clinvar_testing', action='store_true',
         help='Boolean determining whether to use the ClinVar test endpoint'
+        )
+    parser.add_argument(
+        '--print_submission_json', action='store_true',
+        help='Boolean determining whether to print ClinVar submission JSONs'
         )
     parser.add_argument(
         '--db_credentials', required=True,
@@ -170,7 +174,9 @@ def main():
             variants = clinvar.collect_clinvar_data_to_submit(
                 df, config['ref_genomes']
             )
-            r = clinvar.clinvar_api_request(api_url, df.header, variants, df.url)
+            r = clinvar.clinvar_api_request(
+                api_url, df.header, variants, df.url, args.print_submission_json
+            )
             if args.clinvar_testing is False:
                 db.add_submission_id_to_db(r.json(), engine, df['local_id'].values)
 

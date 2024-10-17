@@ -13,8 +13,6 @@ import time
 
 def get_folder_of_input_file(filename: str) -> str:
     '''
-    TODO note: this could change depending on if we stop being dependent on
-    NUH/CUH folder paths in clingen 
     Get the folder of input file
     Inputs:
         filename (str): filename 
@@ -170,7 +168,7 @@ def get_summary_fields(workbook, config, unusual_sample_name, filename):
         df_summary["organisation_id"] = config.get("NUH org ID")
 
     else:
-        print("Running for the wrong folder") # TODO cDate last evaluatedhange this
+        error_msg = "Workbook folder is not CUH or NUH folder given in config"
 
     return df_summary, error_msg
 
@@ -258,14 +256,14 @@ def get_report_fields(workbook, config, df_included):
     error_msg = None
     if not df_report.empty:
         error_msg = check_interpret_table(df_report, df_included, config)
-        print(error_msg)
+
     if not error_msg:
         acgs = config.get("acgs_criteria")
 
         df_report = make_acgs_criteria_null_if_not_applied(df_report, acgs)
 
         df_report = add_comment_on_classification(df_report, acgs, config)
-    print(error_msg)
+
     return df_report, error_msg
 
 
@@ -423,7 +421,7 @@ def check_interpret_table(df_interpret, df_included, config):
     if error_msg == "":
         error_msg = None
 
-    return error_msg # TODO add error_msg to db rather than return it
+    return error_msg
 
 
 def checking_sheets(workbook):
@@ -458,7 +456,7 @@ def checking_sheets(workbook):
     except AssertionError as msg:
         error_msg = str(msg)
 
-    return error_msg # TODO add error_msg to db rather than return it
+    return error_msg
 
 
 def check_interpreted_col(df):
@@ -496,7 +494,7 @@ def check_interpreted_col(df):
     if error_msg == "":
         error_msg = None
 
-    return error_msg  # TODO add error_msg to db rather than return it
+    return error_msg
 
 
 def check_sample_name(instrumentID, sample_ID, batchID, testcode, probesetID):
@@ -523,7 +521,7 @@ def check_sample_name(instrumentID, sample_ID, batchID, testcode, probesetID):
     except AssertionError as msg:
         error_msg = str(msg)
 
-    return error_msg  # TODO add error_msg to db rather than return it
+    return error_msg
 
 
 def submission_status_check(submission_id, headers, api_url):

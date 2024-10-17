@@ -56,20 +56,21 @@ def extract_clinvar_information(variant_row, ref_genomes):
     return clinvar_dict
 
 
-def collect_clinvar_data_to_submit(clinvar_df):
+def collect_clinvar_data_to_submit(clinvar_df, ref_genomes):
     '''
     Cycle through a dataframe, and extract variants for each row. Call the
     function to reformat this into a dictionary for submission to ClinVar and
     return a list of these dictionaries
     Inputs
         clinvar_df (pandas.Dataframe): variant dataframe
+        ref_genomes (list): list of valid reference genome values from config
     Outputs
         variants (list): list of dictionaries with variant data for submission
         to ClinVar
     '''
     variants = []
     for index, variant in clinvar_df.iterrows():
-        clinvar_dict = extract_clinvar_information(variant)
+        clinvar_dict = extract_clinvar_information(variant, ref_genomes)
         variants.append(clinvar_dict)
 
     return variants
@@ -90,7 +91,7 @@ def create_header(api_key):
     return header
 
 
-def clinvar_api_request(url, header, var_list, org_guidelines_url):
+def clinvar_api_request(url, header, var_list, org_guidelines_url, print_json):
     '''
     Make request to the ClinVar API endpoint specified.
     Inputs:
@@ -99,6 +100,8 @@ def clinvar_api_request(url, header, var_list, org_guidelines_url):
         var_list (list): list of variant data for each clinvar variant
         org_guidelines_url (str): url for the ACGS guidelines. These are
         different for CUH and NUH.
+        print_json (boolean): controls whether or not to print each submission
+        JSON
     Returns:
         response: API response object
     '''
@@ -119,8 +122,9 @@ def clinvar_api_request(url, header, var_list, org_guidelines_url):
         ]
     }
 
-    print("JSON to submit:")
-    print(json.dumps(clinvar_data, indent=4, default=str))
+    if print_json is True:
+        print("JSON to submit:")
+        print(json.dumps(clinvar_data, indent=4, default=str))
 
     s = requests.Session()
     retries = Retry(total=10, backoff_factor=0.5)
@@ -136,6 +140,9 @@ def process_submission_status(status, response):
         status (str): Overall submission status
         response (dict): API response, which is a breakdown the response for
         each variant or errors if submission failed.
+    Outputs:
+        accession_ids (dict): dict of accession IDs, or empty dict if
+        submission is not yet processed
     '''
     accession_ids = {}
 
