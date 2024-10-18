@@ -160,8 +160,6 @@ def get_summary_fields(workbook, config, filename):
 
     # getting the folder name of workbook
     # the folder name should return designated folder for either CUH or NUH
-    # TODO this whole thing could get removed depending on if we continue to
-    # use folders to differentiate between NUH and CUH workbooks
     folder_name = get_folder_of_input_file(filename)
     if folder_name == config.get("CUH folder"):
         df_summary["organisation"] = config.get("CUH Organisation")
@@ -240,7 +238,7 @@ def get_report_fields(workbook, config, df_included):
         df_included (pd.DataFrame): data frame extracted from included sheet
     Outputs
         df_included (pd.DataFrame): dataframe extracted from interpret sheet(s)
-        err_msg (str): error message # TODO this error message will be removed
+        err_msg (str): error message
 
     '''
     field_cells = config.get("field_cells")
