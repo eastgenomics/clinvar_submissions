@@ -38,16 +38,18 @@ def get_workbook_data(workbook, config, unusual_sample_name, filename, file, eng
     Outputs
         df_final (pd.DataFrame): data frame extracted from workbook
     '''
+    errors = []
     # get data from summary sheet, included variants sheet and interpret sheets
     df_summary, error = get_summary_fields(workbook, config, unusual_sample_name, filename)
-    if error is not None:
-        add_error_to_db(engine, file, error)
-        return None
+    errors.append(error)
     df_included = get_included_fields(workbook, filename)
     df_interpret, error = get_report_fields(workbook, config, df_included)
-    if error is not None:
-        add_error_to_db(engine, file, error)
-        return None
+    errors.append(error)
+
+    if not all(errors):
+        errors_to_add = [err for err in errors if err is not None]
+        error_to_add = ", ".join(errors_to_add)
+        add_error_to_db(error_to_add, file, engine)
 
     # merge these to get one df
     if not df_included.empty:
