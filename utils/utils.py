@@ -60,7 +60,7 @@ def get_workbook_data(workbook, config, filename, file, engine):
                 "Likely Benign": "Likely benign",
             }
         )
-    
+
     error = check_interpreted_col(df_final)
     errors.append(error)
 

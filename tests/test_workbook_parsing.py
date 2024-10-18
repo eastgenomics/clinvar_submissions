@@ -227,7 +227,7 @@ class TestParsing(unittest.TestCase):
 
         with self.subTest(
             "null criteria have null evidence in df, even if evidence provided"
-            ):
+        ):
             assert pd.isna(df["pp1_evidence"][0])
 
         with self.subTest("No error message should be returned"):
@@ -305,7 +305,9 @@ class TestParsing(unittest.TestCase):
         assert error_msg == "wrong ACMG classification in interpret table"
 
     def test_check_interpret_table_error_if_wrong_strength(self):
-        wrong_interpret_strength_workbook = load_workbook(nuh_wrong_interpret_strength)
+        wrong_interpret_strength_workbook = load_workbook(
+            nuh_wrong_interpret_strength
+        )
         df_include = utils.get_included_fields(
             wrong_interpret_strength_workbook, nuh_wrong_interpret_strength
         )
@@ -397,7 +399,7 @@ class TestParsing(unittest.TestCase):
             "Value for date last evaluated \"Not valid\" is not compatible "
             "with datetime conversion"
         )
-    
+
     def test_interpreted_col_correct(self):
         """
         Test if interpreted col (yes/no) is correctly filled in no error is
@@ -410,7 +412,7 @@ class TestParsing(unittest.TestCase):
         df_final = pd.merge(df_merged, self.df_report, on="hgvsc", how="left")
         msg = utils.check_interpreted_col(df_final)
         assert msg is None
-    
+
     def test_interpreted_col_errors_if_incongruous(self):
         '''
         Test that there is a classification for each variant that has been
