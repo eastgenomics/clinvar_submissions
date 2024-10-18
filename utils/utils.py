@@ -73,14 +73,12 @@ def get_workbook_data(workbook, config, filename, file, engine):
     return df_final
 
 
-def get_summary_fields(workbook, config, unusual_sample_name, filename):
+def get_summary_fields(workbook, config, filename):
     '''
     Extract data from summary sheet of variant workbook
     Inputs
         workbook (openpyxl wb object): workbook being used
         config (dict): config variable
-        unusual_sample_name (bool): whether the sample has an unusual name, if
-        True, will skip validating the sample name conventions.
         filename (str): string of workbook name
     Outputs
         df_summary (pd.DataFrame): data frame extracted from workbook summary
@@ -120,7 +118,7 @@ def get_summary_fields(workbook, config, unusual_sample_name, filename):
     for cell in workbook["summary"]["A"]:
         if cell.value == "Reference:":
             ref_genome = workbook["summary"][f"B{cell.row}"].value
- 
+
     d = {
         "instrument_id": instrument,
         "specimen_id": sample,
