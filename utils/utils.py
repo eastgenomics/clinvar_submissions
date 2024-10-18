@@ -50,6 +50,7 @@ def get_workbook_data(workbook, config, unusual_sample_name, filename, file, eng
         errors_to_add = [err for err in errors if err is not None]
         error_to_add = ", ".join(errors_to_add)
         add_error_to_db(error_to_add, file, engine)
+        return None
 
     # merge these to get one df
     if not df_included.empty:
