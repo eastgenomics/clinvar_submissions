@@ -3,7 +3,6 @@ on:
   push:
     branches:
       - main
-      - add-parsing-tests
   pull_request:
     branches:
       - main
