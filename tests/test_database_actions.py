@@ -61,6 +61,29 @@ class TestDatabase(unittest.TestCase):
         db.add_error_to_db(mock_engine, 'test_workbook.xlsx', 'Parsing error')
         mock_engine.execute.assert_called_once_with(expected_sql)
     
+    def test_add_accession_ids_to_db(self):
+        mock_engine = mock.MagicMock()
+        accession_ids = {
+            'uid_12345': 'SCV000012345',
+            'uid_67890': 'SCV000067890'
+        }
+        uid_12345_sql = (
+           "UPDATE testdirectory.inca SET accession_id = 'SCV000012345' "
+           "WHERE local_id = 'uid_12345'"
+        )
+        uid_67890_sql = (
+           "UPDATE testdirectory.inca SET accession_id = 'SCV000067890' "
+           "WHERE local_id = 'uid_67890'"
+        )
+        db.add_accession_ids_to_db(accession_ids, mock_engine)
+
+        with self.subTest("Assert called twice if two accession IDs to add"):
+            assert mock_engine.execute.call_count == 2
+        
+        mock_engine.execute.assert_has_calls(
+            [call(uid_12345_sql), call(uid_67890_sql)], any_order=True
+        )
+
     def test_add_clinvar_submission_error_to_db(self):
         mock_engine = mock.MagicMock()
         errors = {
@@ -80,6 +103,7 @@ class TestDatabase(unittest.TestCase):
            "WHERE local_id = 'uid_67890'"
         )
         db.add_clinvar_submission_error_to_db(errors, mock_engine)
+
         with self.subTest("Assert called twice if two errors"):
             assert mock_engine.execute.call_count == 2
     
