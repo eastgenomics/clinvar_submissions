@@ -131,7 +131,7 @@ def add_error_to_db(engine, workbook, error):
         None, adds data to db
     '''
     engine.execute(
-        "UPDATE testdirectory.inca_workbooks SET parse_status = FALSE "
+        "UPDATE testdirectory.inca_workbooks SET parse_status = FALSE, "
         f"comment = '{error}' WHERE workbook_name = {workbook}'"
     )
 

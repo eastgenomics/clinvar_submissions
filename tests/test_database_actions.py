@@ -1,0 +1,61 @@
+import unittest
+import unittest.mock as mock
+from freezegun import freeze_time
+import utils.database_actions as db
+
+class TestDatabase(unittest.TestCase):
+    variants = ['uid_12345', 'uid_67890']
+    @freeze_time("2024-07-10 22:22:22")
+    def test_add_wb_to_db(self):
+        '''
+        Test that add_wb_to_db is called with the expected SQL when given
+        example inputs
+        '''
+        mock_engine = mock.MagicMock()
+        expected_sql = (
+            "INSERT INTO testdirectory.inca_workbooks "
+            "(workbook_name, date, parse_status) "
+            "VALUES ('test_workbook.xlsx', '2024-07-10 22:22:22', FAIL) "
+            "ON CONFLICT (workbook_name) DO NOTHING"      
+        )
+        db.add_wb_to_db('test_workbook.xlsx', 'FAIL', mock_engine)
+        mock_engine.execute.assert_called_once_with(expected_sql)
+
+    def test_update_db_for_parsed_wb(self):
+        mock_engine = mock.MagicMock()
+        expected_sql = (
+            "UPDATE testdirectory.inca_workbooks SET parse_status = TRUE "
+            "WHERE workbook_name = 'test_workbook.xlsx'"
+        )
+        db.update_db_for_parsed_wb('test_workbook.xlsx', mock_engine)
+        mock_engine.execute.assert_called_once_with(expected_sql)
+
+    def test_add_submission_id_to_db_if_submission_id_returned(self):
+        mock_engine = mock.MagicMock()
+        response = {'id': 'SUB123456'}
+        expected_sql = (
+            "UPDATE testdirectory.inca SET submission_id = 'SUB123456' "
+            "WHERE local_id in ('uid_12345', 'uid_67890')"
+        )
+        db.add_submission_id_to_db(response, mock_engine, self.variants)
+        mock_engine.execute.assert_called_once_with(expected_sql)
+
+    def test_add_submission_id_to_db_if_error_returned(self):
+        mock_engine = mock.MagicMock()
+        response = {'message': "No valid API key provided"}
+        expected_sql = (
+            "UPDATE testdirectory.inca SET clinvar_status = 'ERROR: No valid "
+            "API key provided' WHERE local_id in ('uid_12345', 'uid_67890')"
+        )
+        db.add_submission_id_to_db(response, mock_engine, self.variants)
+        mock_engine.execute.assert_called_once_with(expected_sql)
+
+    def test_add_error_to_db(self):
+        mock_engine = mock.MagicMock()
+        expected_sql = (
+            "UPDATE testdirectory.inca_workbooks SET parse_status = FALSE, "
+            "comment = 'Parsing error' WHERE workbook_name = "
+            "'test_workbook.xlsx'"
+        )
+        db.add_error_to_db(mock_engine, 'test_workbook.xlsx', 'Parsing error')
+        mock_engine.execute.assert_called_once_with(expected_sql)
