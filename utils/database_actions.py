@@ -65,18 +65,20 @@ def add_submission_id_to_db(response, engine, variants):
     Outputs
         None, adds data to db
     '''
+    add_quotes = [f"'{x}'" for x in variants]
+    submitted_variants = ", ".join(add_quotes)
     sub_id = response.get('id')
     if sub_id:
-        add_quotes = [f"'{x}'" for x in variants]
-        submitted_variants = ", ".join(add_quotes)
-        with engine.begin() as conn:
-            conn.execute(
-                f"UPDATE testdirectory.inca SET submission_id = '{sub_id}' "
-                f"WHERE local_id in ({submitted_variants})"
-            )
+        engine.execute(
+            f"UPDATE testdirectory.inca SET submission_id = '{sub_id}' "
+            f"WHERE local_id in ({submitted_variants})"
+        )
     else:
-        query = ()
-        # TODO handle fails, should we leave this blank
+        error = response.get('message')
+        engine.execute(
+            f"UPDATE testdirectory.inca SET clinvar_status = 'ERROR: {error}' "
+            f"WHERE local_id in ({submitted_variants})"
+        )
 
 
 def select_variants_from_db(organisation_id, engine, submitted, exclude=""):
@@ -144,8 +146,24 @@ def add_accession_ids_to_db(accession_ids, engine):
         None, adds data to db
     '''
     for local_id, accession in accession_ids.items():
-        with engine.begin() as conn:
-            conn.execute(
-                f"UPDATE testdirectory.inca SET accession_id = '{accession}' "
-                f"WHERE local_id = '{local_id}'"
-            )
+        engine.execute(
+            f"UPDATE testdirectory.inca SET accession_id = '{accession}' "
+            f"WHERE local_id = '{local_id}'"
+        )
+
+
+def add_clinvar_submission_error_to_db(errors, engine):
+    '''
+    Add any ClinVar submission error to INCA database
+    Inputs
+        errors (dict): dict mapping local_id to ClinVar submission error
+        message
+        engine (SQLAlchemy connection engine): connection to AWS db
+    Outputs
+        None, adds data to db
+    '''
+    for local_id, error in errors.items():
+        engine.execute(
+            f"UPDATE testdirectory.inca SET clinvar_status = 'ERROR: f{error}'"
+            f" WHERE local_id = '{local_id}'"
+        )
