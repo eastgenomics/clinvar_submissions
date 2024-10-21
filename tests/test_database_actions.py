@@ -3,8 +3,13 @@ import unittest.mock as mock
 from unittest.mock import call
 from freezegun import freeze_time
 import utils.database_actions as db
+import pandas as pd
 
-class TestDatabase(unittest.TestCase):
+class TestDatabaseEngine(unittest.TestCase):
+    '''
+    Test all the functions in database_actions which generate SQL queries to
+    read from the database using the SQLAlchemy engine directly
+    '''
     variants = ['uid_12345', 'uid_67890']
     @freeze_time("2024-07-10 22:22:22")
     def test_add_wb_to_db(self):
@@ -106,7 +111,82 @@ class TestDatabase(unittest.TestCase):
 
         with self.subTest("Assert called twice if two errors"):
             assert mock_engine.execute.call_count == 2
-    
+
         mock_engine.execute.assert_has_calls(
             [call(uid_12345_sql), call(uid_67890_sql)], any_order=True
         )
+
+
+class TestDatabasePandas(unittest.TestCase):
+    '''
+    Test all the functions in database_actions which interact with the
+    database via pandas processes
+    '''
+    data = [{
+            "local_id": "uid-123456789",
+            "linking_id": "uid-123456789",
+            "chromosome": 7,
+            "start": 117232266,
+            "reference_allele": "C",
+            "alternate_allele": "CA",
+            "gene_symbol": "CFTR",
+            "comment_on_classification": "PVS1,PM3_Strong",
+            "germline_classification": "Pathogenic",
+            "date_last_evaluated": "2024-10-10",
+            "preferred_condition_name": "Cystic fibrosis",
+            "collection_method": "clinical testing",
+            "affected_status": "yes",
+            "allele_origin": "germline",
+            "ref_genome": "GRCh37.p13",
+    }]
+    df = pd.DataFrame(data)
+    @mock.patch('pandas.DataFrame.to_sql')
+    def test_add_variants_to_db(self, pd_to_sql_mock):
+        mock_engine = mock.MagicMock()
+        db.add_variants_to_db(self.df, mock_engine)
+        pd_to_sql_mock.assert_called_once_with(
+            "inca", mock_engine, if_exists='append', schema='testdirectory',
+            index=False
+        )
+
+    @mock.patch('pandas.read_sql')
+    def test_select_variants_from_db(self, pd_read_sql_mock):
+        mock_engine = mock.MagicMock()
+        pd_read_sql_mock.return_value = self.df
+        expected_sql = (
+            "SELECT * FROM testdirectory.inca WHERE interpreted = 'yes' AND "
+            "submission_id = 'SUB12345' AND accession_id is NULL AND "
+            "organisation_id = '1234'"
+        )
+        return_df = db.select_variants_from_db(1234, mock_engine, 'SUB12345')
+
+
+        with self.subTest("Returns value from pd.read_sql()"):
+            pd.testing.assert_frame_equal(return_df, self.df)
+
+        with self.subTest("pd.read_sql() called with correct SQL query"):
+            pd_read_sql_mock.assert_called_once_with(expected_sql, mock_engine)
+
+    @mock.patch('pandas.read_sql')
+    def test_select_variants_from_db_with_exclude(self, pd_read_sql_mock):
+        '''
+        Test that when an exclude value is passed to select_variants_from_db
+        it is added to the query
+        '''
+        mock_engine = mock.MagicMock()
+        exclude = " AND panel != '_HGNC:7527'"
+        pd_read_sql_mock.return_value = self.df
+        expected_sql = (
+            "SELECT * FROM testdirectory.inca WHERE interpreted = 'yes' AND "
+            "submission_id = 'SUB12345' AND accession_id is NULL AND "
+            "organisation_id = '1234' AND panel != '_HGNC:7527'"
+        )
+        return_df = db.select_variants_from_db(
+            1234, mock_engine, 'SUB12345', exclude
+        )
+      
+        with self.subTest("Returns value from pd.read_sql()"):
+            pd.testing.assert_frame_equal(return_df, self.df)
+
+        with self.subTest("pd.read_sql() called with correct SQL query"):
+            pd_read_sql_mock.assert_called_once_with(expected_sql, mock_engine)
