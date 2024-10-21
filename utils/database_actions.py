@@ -164,6 +164,6 @@ def add_clinvar_submission_error_to_db(errors, engine):
     '''
     for local_id, error in errors.items():
         engine.execute(
-            f"UPDATE testdirectory.inca SET clinvar_status = 'ERROR: f{error}'"
-            f" WHERE local_id = '{local_id}'"
+            f"UPDATE testdirectory.inca SET clinvar_status = 'ERROR: {error}' "
+            f"WHERE local_id = '{local_id}'"
         )
