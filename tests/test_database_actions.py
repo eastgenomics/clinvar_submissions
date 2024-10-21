@@ -11,6 +11,7 @@ class TestDatabaseEngine(unittest.TestCase):
     read from the database using the SQLAlchemy engine directly
     '''
     variants = ['uid_12345', 'uid_67890']
+
     @freeze_time("2024-07-10 22:22:22")
     def test_add_wb_to_db(self):
         '''
@@ -140,6 +141,7 @@ class TestDatabasePandas(unittest.TestCase):
             "ref_genome": "GRCh37.p13",
     }]
     df = pd.DataFrame(data)
+
     @mock.patch('pandas.DataFrame.to_sql')
     def test_add_variants_to_db(self, pd_to_sql_mock):
         mock_engine = mock.MagicMock()
@@ -184,7 +186,7 @@ class TestDatabasePandas(unittest.TestCase):
         return_df = db.select_variants_from_db(
             1234, mock_engine, 'SUB12345', exclude
         )
-      
+
         with self.subTest("Returns value from pd.read_sql()"):
             pd.testing.assert_frame_equal(return_df, self.df)
 
