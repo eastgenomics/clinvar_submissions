@@ -65,7 +65,7 @@ class TestDatabaseEngine(unittest.TestCase):
         )
         db.add_error_to_db(mock_engine, 'test_workbook.xlsx', 'Parsing error')
         mock_engine.execute.assert_called_once_with(expected_sql)
-    
+
     def test_add_accession_ids_to_db(self):
         mock_engine = mock.MagicMock()
         accession_ids = {
@@ -84,7 +84,7 @@ class TestDatabaseEngine(unittest.TestCase):
 
         with self.subTest("Assert called twice if two accession IDs to add"):
             assert mock_engine.execute.call_count == 2
-        
+
         mock_engine.execute.assert_has_calls(
             [call(uid_12345_sql), call(uid_67890_sql)], any_order=True
         )
