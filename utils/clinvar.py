@@ -12,9 +12,6 @@ def extract_clinvar_information(variant_row, ref_genomes):
     outputs:
         clinvar_dict: dictionary of data to submit to clinvar
     '''
-    if pd.isna(variant_row["comment_on_classification"]):
-        variant_row["comment_on_classification"] = ""
-
     if variant_row["ref_genome"] not in ref_genomes:
         raise ValueError("Invalid genome build")
 
