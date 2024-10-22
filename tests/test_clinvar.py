@@ -5,6 +5,7 @@ import unittest.mock as mock
 import json
 from copy import deepcopy
 
+
 class TestClinvar(unittest.TestCase):
     ref_genomes = ["GRCh37.p13", "GRCh38.p13"]
     data = [{
@@ -69,29 +70,29 @@ class TestClinvar(unittest.TestCase):
         "totalSuccess": 1,
         "submissions": [
             {
-            "identifiers": {
-                "localID": "uid_12345",
-            },
-            "errors": [
-                { "output": {
-                    "errors": [
-                    {
-                        "userMessage": "The identifier cannot be validated"
+                "identifiers": {
+                    "localID": "uid_12345",
+                },
+                "errors": [
+                    { "output": {
+                        "errors": [
+                        {
+                            "userMessage": "The identifier cannot be validated"
+                        }
+                        ]
                     }
-                    ]
-                }
-                }
-            ]
+                    }
+                ]
             },
             {
-            "identifiers": {
-                "localID": "uid_67890",
-                "clinvarAccession": "SCV000067890"
+                "identifiers": {
+                    "localID": "uid_67890",
+                    "clinvarAccession": "SCV000067890"
+                }
             }
-        }
         ]
     }
-    
+
     def test_extract_clinvar_information_reformats_data_correctly(self):
         clinvar_submission = clinvar.extract_clinvar_information(
             self.df.iloc[0], self.ref_genomes
@@ -170,7 +171,6 @@ class TestClinvar(unittest.TestCase):
         with self.subTest("Check the function returned the mocked response"):
             assert response == {'id': 'SUB12345'}
 
-
     def test_process_submission_status_with_one_error_message(self):
         assert clinvar.process_submission_status(
             'error', self.submission_response
@@ -178,7 +178,7 @@ class TestClinvar(unittest.TestCase):
             {"uid_67890": "SCV000067890"},
             {"uid_12345": "The identifier cannot be validated"}
         )
-    
+
     def test_process_submission_status_with_two_error_messages(self):
         response = deepcopy(self.submission_response)
         # Add extra error
@@ -191,7 +191,7 @@ class TestClinvar(unittest.TestCase):
             {"uid_12345": "The identifier cannot be validated, Matching record"
              " already exists."}
         )
-    
+
     def test_process_submission_status_if_all_successful(self):
         response = deepcopy(self.submission_response)
         # Overwrite error with mock successful submission

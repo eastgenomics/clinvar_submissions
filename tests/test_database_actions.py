@@ -5,6 +5,7 @@ from freezegun import freeze_time
 import utils.database_actions as db
 import pandas as pd
 
+
 class TestDatabaseEngine(unittest.TestCase):
     '''
     Test all the functions in database_actions which generate SQL queries to
@@ -23,7 +24,7 @@ class TestDatabaseEngine(unittest.TestCase):
             "INSERT INTO testdirectory.inca_workbooks "
             "(workbook_name, date, parse_status) "
             "VALUES ('test_workbook.xlsx', '2024-07-10 22:22:22', FAIL) "
-            "ON CONFLICT (workbook_name) DO NOTHING"      
+            "ON CONFLICT (workbook_name) DO NOTHING"
         )
         db.add_wb_to_db('test_workbook.xlsx', 'FAIL', mock_engine)
         mock_engine.execute.assert_called_once_with(expected_sql)
@@ -124,21 +125,21 @@ class TestDatabasePandas(unittest.TestCase):
     database via pandas processes
     '''
     data = [{
-            "local_id": "uid-123456789",
-            "linking_id": "uid-123456789",
-            "chromosome": 7,
-            "start": 117232266,
-            "reference_allele": "C",
-            "alternate_allele": "CA",
-            "gene_symbol": "CFTR",
-            "comment_on_classification": "PVS1,PM3_Strong",
-            "germline_classification": "Pathogenic",
-            "date_last_evaluated": "2024-10-10",
-            "preferred_condition_name": "Cystic fibrosis",
-            "collection_method": "clinical testing",
-            "affected_status": "yes",
-            "allele_origin": "germline",
-            "ref_genome": "GRCh37.p13",
+        "local_id": "uid-123456789",
+        "linking_id": "uid-123456789",
+        "chromosome": 7,
+        "start": 117232266,
+        "reference_allele": "C",
+        "alternate_allele": "CA",
+        "gene_symbol": "CFTR",
+        "comment_on_classification": "PVS1,PM3_Strong",
+        "germline_classification": "Pathogenic",
+        "date_last_evaluated": "2024-10-10",
+        "preferred_condition_name": "Cystic fibrosis",
+        "collection_method": "clinical testing",
+        "affected_status": "yes",
+        "allele_origin": "germline",
+        "ref_genome": "GRCh37.p13",
     }]
     df = pd.DataFrame(data)
 
