@@ -162,7 +162,6 @@ class TestDatabasePandas(unittest.TestCase):
         )
         return_df = db.select_variants_from_db(1234, mock_engine, 'SUB12345')
 
-
         with self.subTest("Returns value from pd.read_sql()"):
             pd.testing.assert_frame_equal(return_df, self.df)
 
