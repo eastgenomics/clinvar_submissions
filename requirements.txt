@@ -1,1 +1,6 @@
-dxpy==0.378.0
+numpy==1.21.4
+freezegun==1.5.1
+pandas==2.0.3
+openpyxl==3.1.2
+pytest==7.2.0
+requests==2.22.0

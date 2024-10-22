@@ -1,4 +1,3 @@
-import re
 from datetime import date
 from dateutil import parser as date_parser
 from utils.database_actions import add_error_to_db
@@ -23,15 +22,13 @@ def get_folder_of_input_file(filename: str) -> str:
     return folder
 
 
-def get_workbook_data(workbook, config, unusual_sample_name, filename, file, engine):
+def get_workbook_data(workbook, config, filename, file, engine):
     '''
     Function that runs functions to extract data from each sheet in the
     workbook and merges it together into one dataframe
     Inputs
         workbook (openpyxl wb object): workbook being used
         config (dict): config variable
-        unusual_sample_name (bool): whether the sample has an unusual name, if
-        True, will skip validating the sample name conventions.
         filename (str): string of workbook name with preceding path
         file (str): string of workbook name without preceding path
         engine (SQLAlchemy engine): connection to database
@@ -40,17 +37,11 @@ def get_workbook_data(workbook, config, unusual_sample_name, filename, file, eng
     '''
     errors = []
     # get data from summary sheet, included variants sheet and interpret sheets
-    df_summary, error = get_summary_fields(workbook, config, unusual_sample_name, filename)
+    df_summary, error = get_summary_fields(workbook, config, filename)
     errors.append(error)
     df_included = get_included_fields(workbook, filename)
     df_interpret, error = get_report_fields(workbook, config, df_included)
     errors.append(error)
-
-    if not all(errors):
-        errors_to_add = [err for err in errors if err is not None]
-        error_to_add = ", ".join(errors_to_add)
-        add_error_to_db(error_to_add, file, engine)
-        return None
 
     # merge these to get one df
     if not df_included.empty:
@@ -70,24 +61,32 @@ def get_workbook_data(workbook, config, unusual_sample_name, filename, file, eng
             }
         )
 
+    error = check_interpreted_col(df_final)
+    errors.append(error)
+
+    if not all(errors):
+        errors_to_add = [err for err in errors if err is not None]
+        error_to_add = ", ".join(errors_to_add)
+        add_error_to_db(error_to_add, file, engine)
+        return None
+
     return df_final
 
 
-def get_summary_fields(workbook, config, unusual_sample_name, filename):
+def get_summary_fields(workbook, config, filename):
     '''
     Extract data from summary sheet of variant workbook
     Inputs
         workbook (openpyxl wb object): workbook being used
         config (dict): config variable
-        unusual_sample_name (bool): whether the sample has an unusual name, if
-        True, will skip validating the sample name conventions.
         filename (str): string of workbook name
     Outputs
         df_summary (pd.DataFrame): data frame extracted from workbook summary
         sheet
         err_msg (str): error message
     '''
-    sampleID = workbook["summary"]["B1"].value
+    error_msg = None
+    sample_id = workbook["summary"]["B1"].value
 
     clinical_indication = workbook["summary"]["F1"].value
     # Handle cases with multiple clinical indications
@@ -106,18 +105,18 @@ def get_summary_fields(workbook, config, unusual_sample_name, filename):
 
     panel = workbook["summary"]["F2"].value
     date_evaluated = workbook["summary"]["G22"].value
-    instrument, sample, batch, testcode, _, probeset = sampleID.split("-")
+
+    # Check that sample name matches expected structure
+    if len(sample_id.split("-")) != 6:
+        error_msg = f"Sample ID {sample_id} is not six items delimited with -"
+        return None, error_msg
+
+    instrument, sample, batch, testcode, _, probeset = sample_id.split("-")
     ref_genome = "not_defined"
     for cell in workbook["summary"]["A"]:
         if cell.value == "Reference:":
             ref_genome = workbook["summary"][f"B{cell.row}"].value
 
-    # checking sample naming
-    error_msg = None
-    if not unusual_sample_name:
-        check_sample_name(
-            instrument, sample, batch, testcode, probeset
-        )
     d = {
         "instrument_id": instrument,
         "specimen_id": sample,
@@ -159,8 +158,6 @@ def get_summary_fields(workbook, config, unusual_sample_name, filename):
 
     # getting the folder name of workbook
     # the folder name should return designated folder for either CUH or NUH
-    # TODO this whole thing could get removed depending on if we continue to
-    # use folders to differentiate between NUH and CUH workbooks
     folder_name = get_folder_of_input_file(filename)
     if folder_name == config.get("CUH folder"):
         df_summary["organisation"] = config.get("CUH Organisation")
@@ -239,7 +236,7 @@ def get_report_fields(workbook, config, df_included):
         df_included (pd.DataFrame): data frame extracted from included sheet
     Outputs
         df_included (pd.DataFrame): dataframe extracted from interpret sheet(s)
-        err_msg (str): error message # TODO this error message will be removed
+        err_msg (str): error message
 
     '''
     field_cells = config.get("field_cells")
@@ -260,12 +257,12 @@ def get_report_fields(workbook, config, df_included):
     if not df_report.empty:
         error_msg = check_interpret_table(df_report, df_included, config)
 
-    if not error_msg:
-        acgs = config.get("acgs_criteria")
+        if not error_msg:
+            acgs = config.get("acgs_criteria")
 
-        df_report = make_acgs_criteria_null_if_not_applied(df_report, acgs)
+            df_report = make_acgs_criteria_null_if_not_applied(df_report, acgs)
 
-        df_report = add_comment_on_classification(df_report, acgs, config)
+            df_report = add_comment_on_classification(df_report, acgs, config)
 
     return df_report, error_msg
 
@@ -287,14 +284,16 @@ def make_acgs_criteria_null_if_not_applied(df, acgs_criteria):
         for criteria that were not applied, and a null value for evidence for
         all criteria not applied.
     '''
-    df[acgs_criteria] = df[acgs_criteria] 
-
     for index, row, in df.iterrows():
         for criterion in acgs_criteria:
             if row[criterion] == "NA":
                 df.loc[index, criterion] = np.nan
+
+    for index, row, in df.iterrows():
+        for criterion in acgs_criteria:
             if pd.isna(row[criterion]):
                 df.loc[index, criterion + "_evidence"] = np.nan
+
     return df
 
 
@@ -469,28 +468,28 @@ def check_interpreted_col(df):
         df (pd.DataFrame): merged dataframe with data from workbook
         error_msg (str): error message
     '''
-    row_yes = df[df["Interpreted"] == "yes"].index.tolist()
     error_msg = []
-    for row in range(df.shape[0]):
-        if row in row_yes:
-            try:
-                assert (
-                    df.loc[row, "germline_classification"].notna()
-                ), f"Wrong interpreted column in row {row+1} of included sheet"
-            except AssertionError as msg:
-                error_msg.append(str(msg))
+    yes_df = df[df["interpreted"] == "yes"]
+    no_df = df[df["interpreted"] == "no"]
 
-        else:
-            try:
-                assert df.loc[row, "interpreted"] == "no", (
-                    f"Wrong interpreted column dropdown in row {row+1} "
-                    "of included sheet"
-                )
-                assert (
-                    df.loc[row, "germline_classification"].isna()
-                ), f"Wrong interpreted column in row {row+1} of included sheet"
-            except AssertionError as msg:
-                error_msg.append(str(msg))
+    if not df["interpreted"].isin(['yes', 'no']).all():
+        error_msg.append(
+            "Values in interpreted column are not all either 'yes' or 'no'"
+        )
+
+    for index, row in yes_df.iterrows():
+        if pd.isna(row["germline_classification"]):
+            error_msg.append(
+                f"Variant {row['hgvsc']} has interpreted = yes, but no final "
+                "classification could be extracted from interpret sheets."
+            )
+
+    for index, row in no_df.iterrows():
+        if pd.notna(row["germline_classification"]):
+            error_msg.append(
+                f"Variant {row['hgvsc']} has interpreted = no, but a final "
+                "classification could be extracted from interpret sheets."
+            )
 
     error_msg = " ".join(error_msg)
 

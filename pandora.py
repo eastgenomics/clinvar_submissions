@@ -106,23 +106,23 @@ def main():
     # If any exist, query clinvar API to retrieve accession IDs
     for df in [cuh_submission_df, nuh_submission_df]:
         if not df.empty:
-            for index, variant in df.iterrows():
+            for submission_id in list(df["submission_id"].unique()):
                 status, response = utils.submission_status_check(
-                    variant["submission_id"], df.header, api_url
+                    submission_id, df.header, api_url
                 )
-                accession_ids = clinvar.process_submission_status(
+                accession_ids, errors = clinvar.process_submission_status(
                     status, response
                 )
 
                 if accession_ids != {}:
                     db.add_accession_ids_to_db(accession_ids, engine)
 
-    # Re-run any failed workbooks
-    workbook_df = db.select_workbooks_from_db(engine, "parse_status = FALSE")
-    if not workbook_df.empty:
-        print("Found these:")
+                if errors != {}:
+                    db.add_clinvar_submission_error_to_db(
+                        errors, engine.connect()
+                    )
 
-    # Get any new workbooks
+    # Get any new workbooks and re-run any failed workbooks in given path
     if args.path_to_workbooks:
         print(f"Searching {args.path_to_workbooks}...")
         filenames = glob.glob(args.path_to_workbooks + "*.xlsx")
@@ -130,29 +130,36 @@ def main():
 
         # Get previously parsed workbooks
         parsed_workbook_df = db.select_workbooks_from_db(
-        engine, f"parse_status = TRUE"
+            engine, "parse_status = TRUE"
         )
+        parsed_list = parsed_workbook_df['workbook_name'].values
+        failed_parsing_df = db.select_workbooks_from_db(
+            engine, "parse_status = FALSE"
+        )
+        failed_list = failed_parsing_df['workbook_name'].values
+
         for filename in filenames:
             print(f"Processing {filename}")
             # check if wb has not already been processed
             file = os.path.basename(filename)
-            if file not in parsed_workbook_df['workbook_name'].values:
+            if file not in parsed_list:
                 print(
                     f"{file} has not previously been parsed successfully.\n"
                     f"Parsing {file}..."
                 )
                 workbook = load_workbook(filename)
-                db.add_wb_to_db(file, "NULL", engine.connect())
+                if file not in failed_list:
+                    db.add_wb_to_db(file, "NULL", engine.connect())
 
                 # Get a df of data from each sheet in workbook:
                 df = utils.get_workbook_data(
-                    workbook, config, True, filename, file, engine.connect()
+                    workbook, config, filename, file, engine.connect()
                 )
                 if df is not None:
                     if not df.empty:
                         print(f"Adding {df.shape[0]} variants to INCA db...")
                         db.add_variants_to_db(df, engine.connect())
-                        db.update_db_for_parsed_wb(file, engine.connect())
+                    db.update_db_for_parsed_wb(file, engine.connect())
             else:
                 print(f"{file} has already been parsed. Skipping...")
 
@@ -174,11 +181,13 @@ def main():
             variants = clinvar.collect_clinvar_data_to_submit(
                 df, config['ref_genomes']
             )
-            r = clinvar.clinvar_api_request(
+            response = clinvar.clinvar_api_request(
                 api_url, df.header, variants, df.url, args.print_submission_json
             )
             if args.clinvar_testing is False:
-                db.add_submission_id_to_db(r.json(), engine, df['local_id'].values)
+                db.add_submission_id_to_db(
+                    response.json(), engine.connect(), df['local_id'].values
+                )
 
 
 if __name__ == "__main__":

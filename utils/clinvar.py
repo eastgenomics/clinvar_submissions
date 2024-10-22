@@ -2,6 +2,7 @@ import pandas as pd
 import requests
 import json
 from requests.adapters import HTTPAdapter, Retry
+from utils.database_actions import add_clinvar_submission_error_to_db
 
 def extract_clinvar_information(variant_row, ref_genomes):
     '''
@@ -12,9 +13,6 @@ def extract_clinvar_information(variant_row, ref_genomes):
     outputs:
         clinvar_dict: dictionary of data to submit to clinvar
     '''
-    if pd.isna(variant_row["comment_on_classification"]):
-        variant_row["comment_on_classification"] = ""
-
     if variant_row["ref_genome"] not in ref_genomes:
         raise ValueError("Invalid genome build")
 
@@ -143,35 +141,42 @@ def process_submission_status(status, response):
     Outputs:
         accession_ids (dict): dict of accession IDs, or empty dict if
         submission is not yet processed
+        errors (dict): dict of errors, or empty dict if submission is
+        not yet processed
     '''
     accession_ids = {}
+    errors = {}
 
     # check status
     # nb: status 'error' can be partial success; some submitted, some failed
     if status in ["processed", "error"]:
-        batch_status = response.get('batchProcessingStatus')
+        print(
+            f"{response['totalSuccess']} successfully submitted.\n"
+            f"{response['totalErrors']} failed.\nGetting accession IDs..."
+        )
+        for submission in response.get("submissions"):
+            if submission.get('errors', None) is not None:
+                msgs = []
+                submission_errors = [
+                    error['output']['errors'] for error in submission['errors']
+                ]
+                for error_messages in submission_errors:
+                    msgs.extend(
+                        [err_msg['userMessage'] for err_msg in error_messages]
+                    )
 
-        if batch_status == "Error":
-            print("All submissions failed. No accession IDs.")
+                error_msgs = ', '.join(msgs)
+                errors[submission['identifiers']['localID']] = error_msgs
 
-        else:
-            print(
-                f"{response['totalSuccess']} successfully submitted.\n"
-                f"{response['totalErrors']} failed.\nGetting accession IDs..."
-            )
-            for submission in response.get("submissions"):
-                if submission.get('errors', None) is not None:
-                    # Record this somewhere or PASS
-                    print(submission['identifiers'], submission.get('errors'))
-                else:
-                    accession_ids[submission['identifiers'][
-                        'localID']
-                        ] = submission['identifiers'][
-                        'clinvarAccession']
+            else:
+                accession_ids[submission['identifiers'][
+                    'localID']
+                    ] = submission['identifiers'][
+                    'clinvarAccession']
     else:
         print(
             f"Batch submission has status {status}; not yet processed by "
             "ClinVar"
         )
 
-    return accession_ids
+    return accession_ids, errors
