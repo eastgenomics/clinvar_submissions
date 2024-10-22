@@ -107,9 +107,7 @@ def get_summary_fields(workbook, config, filename):
     date_evaluated = workbook["summary"]["G22"].value
 
     # Check that sample name matches expected structure
-    try:
-        assert len(sample_id.split("-")) == 6
-    except AssertionError:
+    if len(sample_id.split("-")) != 6:
         error_msg = f"Sample ID {sample_id} is not six items delimited with -"
         return None, error_msg
 
@@ -474,27 +472,24 @@ def check_interpreted_col(df):
     yes_df = df[df["interpreted"] == "yes"]
     no_df = df[df["interpreted"] == "no"]
 
-    try:
-        assert df["interpreted"].isin(['yes', 'no']).all(), \
-        "Values in interpreted column are not all either 'yes' or 'no'"
-    except AssertionError as err:
-        error_msg.append(str(err))
+    if not df["interpreted"].isin(['yes', 'no']).all():
+        error_msg.append(
+            "Values in interpreted column are not all either 'yes' or 'no'"
+        )
 
     for index, row in yes_df.iterrows():
-        try:
-            assert pd.notna(row["germline_classification"]), \
-            f"Variant {row['hgvsc']} has interpreted = yes, but no final " \
-            "classification could be extracted from interpret sheets."
-        except AssertionError as err:
-            error_msg.append(str(err))
+        if pd.isna(row["germline_classification"]):
+            error_msg.append(
+                f"Variant {row['hgvsc']} has interpreted = yes, but no final "
+                "classification could be extracted from interpret sheets."
+            )
 
     for index, row in no_df.iterrows():
-        try:
-            assert pd.isna(row["germline_classification"]), \
-            f"Variant {row['hgvsc']} has interpreted = no, but a final " \
-            "classification could be extracted from interpret sheets."
-        except AssertionError as err:
-            error_msg.append(str(err))
+        if pd.notna(row["germline_classification"]):
+            error_msg.append(
+                f"Variant {row['hgvsc']} has interpreted = no, but a final "
+                "classification could be extracted from interpret sheets."
+            )
 
     error_msg = " ".join(error_msg)
 
