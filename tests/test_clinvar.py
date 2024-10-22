@@ -1,7 +1,9 @@
 import utils.clinvar as clinvar
 import pandas as pd
 import unittest
-import numpy as np
+import unittest.mock as mock
+import json
+from copy import deepcopy
 
 class TestClinvar(unittest.TestCase):
     ref_genomes = ["GRCh37.p13", "GRCh38.p13"]
@@ -60,10 +62,37 @@ class TestClinvar(unittest.TestCase):
         },
     }
 
-    def test_clinvar_data_reformatted_correctly(self):
-        '''
-        Test that when given a dataframe, this function reformats it correctly
-        '''
+    submission_response = {
+        "batchProcessingStatus": "Partial success",
+        "totalCount": 2,
+        "totalErrors": 1,
+        "totalSuccess": 1,
+        "submissions": [
+            {
+            "identifiers": {
+                "localID": "uid_12345",
+            },
+            "errors": [
+                { "output": {
+                    "errors": [
+                    {
+                        "userMessage": "The identifier cannot be validated"
+                    }
+                    ]
+                }
+                }
+            ]
+            },
+            {
+            "identifiers": {
+                "localID": "uid_67890",
+                "clinvarAccession": "SCV000067890"
+            }
+        }
+        ]
+    }
+    
+    def test_extract_clinvar_information_reformats_data_correctly(self):
         clinvar_submission = clinvar.extract_clinvar_information(
             self.df.iloc[0], self.ref_genomes
         )
@@ -99,3 +128,79 @@ class TestClinvar(unittest.TestCase):
             {"SP-API-KEY": 'foobar', "Content-type": "application/json"}
         )
 
+    @mock.patch('requests.Session')
+    def test_clinvar_api_request(self, mock_session):
+        '''
+        Test that tge clinvar API request function makes post requests as
+        expected.
+        '''
+        mock_session.return_value.post.return_value = {'id': 'SUB12345'}
+
+        # Define inputs to clinvar_api_request
+        api_url = 'https://clinvar-api.fake-url.com/submit'
+        org_url = 'https://clinvar.com/fake-acgs-guidelines'
+        headers = {"SP-API-KEY": 'foobar', "Content-type": "application/json"}
+
+        # Define expected data for clinvar_api_request to use for API POST
+        correct_data = {
+            "actions": [
+                {
+                "type": "AddData",
+                "targetDb": "clinvar",
+                "data": {
+                    "content": {
+                        'clinvarSubmission': [self.correct_submission_dict],
+                        'assertionCriteria': {
+                            'url': 'https://clinvar.com/fake-acgs-guidelines'
+                            }
+                        }
+                    }
+                }
+            ]
+        }
+
+        response = clinvar.clinvar_api_request(
+            api_url, headers, [self.correct_submission_dict], org_url, False
+        )
+        with self.subTest("Check the function was called with expected data"):
+            mock_session.return_value.post.assert_called_once_with(
+                api_url, data=json.dumps(correct_data), headers=headers
+            )
+
+        with self.subTest("Check the function returned the mocked response"):
+            assert response == {'id': 'SUB12345'}
+
+
+    def test_process_submission_status_with_one_error_message(self):
+        assert clinvar.process_submission_status(
+            'error', self.submission_response
+            ) == (
+            {"uid_67890": "SCV000067890"},
+            {"uid_12345": "The identifier cannot be validated"}
+        )
+    
+    def test_process_submission_status_with_two_error_messages(self):
+        response = deepcopy(self.submission_response)
+        # Add extra error
+        response['submissions'][0]['errors'][0]['output']['errors'].append(
+            {'userMessage': 'Matching record already exists.'}
+        )
+
+        assert clinvar.process_submission_status('error', response) == (
+            {"uid_67890": "SCV000067890"},
+            {"uid_12345": "The identifier cannot be validated, Matching record"
+             " already exists."}
+        )
+    
+    def test_process_submission_status_if_all_successful(self):
+        response = deepcopy(self.submission_response)
+        # Overwrite error with mock successful submission
+        response['submissions'][0] = {
+            "identifiers": {
+                "localID": "uid_12345",
+                "clinvarAccession": "SCV000012345"
+                }
+            }
+        assert clinvar.process_submission_status('processed', response) == (
+            {"uid_67890": "SCV000067890", "uid_12345": "SCV000012345"}, {}
+        )

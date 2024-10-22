@@ -156,9 +156,18 @@ def process_submission_status(status, response):
         )
         for submission in response.get("submissions"):
             if submission.get('errors', None) is not None:
-                errors[submission['identifiers'][
-                    'localID']
-                ] = submission['errors']['output']['errors']['userMessage']
+                msgs = []
+                submission_errors = [
+                    error['output']['errors'] for error in submission['errors']
+                ]
+                for error_messages in submission_errors:
+                    msgs.extend(
+                        [err_msg['userMessage'] for err_msg in error_messages]
+                    )
+
+                error_msgs = ', '.join(msgs)
+                errors[submission['identifiers']['localID']] = error_msgs
+
             else:
                 accession_ids[submission['identifiers'][
                     'localID']
