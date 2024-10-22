@@ -74,7 +74,7 @@ class TestClinvar(unittest.TestCase):
                     "localID": "uid_12345",
                 },
                 "errors": [
-                    { "output": {
+                    {"output": {
                         "errors": [
                         {
                             "userMessage": "The identifier cannot be validated"
