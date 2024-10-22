@@ -131,7 +131,7 @@ class TestClinvar(unittest.TestCase):
     @mock.patch('requests.Session')
     def test_clinvar_api_request(self, mock_session):
         '''
-        Test that tge clinvar API request function makes post requests as
+        Test that the clinvar API request function makes post requests as
         expected.
         '''
         mock_session.return_value.post.return_value = {'id': 'SUB12345'}
