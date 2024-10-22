@@ -187,8 +187,31 @@ class TestDatabasePandas(unittest.TestCase):
             1234, mock_engine, 'SUB12345', exclude
         )
 
-        with self.subTest("Returns value from pd.read_sql()"):
+        with self.subTest("Returns mocked value from pd.read_sql()"):
             pd.testing.assert_frame_equal(return_df, self.df)
+
+        with self.subTest("pd.read_sql() called with correct SQL query"):
+            pd_read_sql_mock.assert_called_once_with(expected_sql, mock_engine)
+
+    @mock.patch('pandas.read_sql')
+    def test_select_wb_from_db(self, pd_read_sql_mock):
+        mock_engine = mock.MagicMock()
+        expected_sql = (
+            "SELECT * FROM testdirectory.inca_workbooks WHERE parse_status = "
+            "FALSE"
+        )
+        data = {
+            "workbook_name": ['test_wb.xlsx'],
+            "parse_status": False
+        }
+        df = pd.DataFrame(data)
+        pd_read_sql_mock.return_value = df
+
+        return_df = db.select_workbooks_from_db(
+            mock_engine, "parse_status = FALSE"
+        )
+        with self.subTest("Returns mocked value from pd.read_sql()"):
+            pd.testing.assert_frame_equal(return_df, df)
 
         with self.subTest("pd.read_sql() called with correct SQL query"):
             pd_read_sql_mock.assert_called_once_with(expected_sql, mock_engine)
