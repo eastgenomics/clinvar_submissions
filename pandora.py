@@ -167,7 +167,7 @@ def main():
                     db.update_db_for_parsed_wb(file, engine.connect())
             else:
                 print(f"{file} has already been parsed. Skipping...")
-    
+
     # Select all variants that have interpreted = yes and are not submitted
     # Also exclude any variants meeting exclusion criteria set in the config
     if not args.hold_for_review:
