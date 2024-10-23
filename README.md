@@ -1,10 +1,10 @@
 # clinvar submissions process
 
 ## What does this script do?
-This script searches a given folder for an Excel variant workbook, extracts those variants and adds to the INCA table. It then checks all the variants in the INCA table for an Interpreted status of 'yes' and submits those that have been interpreted to ClinVar.
+This script searches a given folder for Excel variant workbooks that have not previously been parsed successfully, extracts variants from those workbooks and adds variants to the INCA table. It then checks all the variants in the INCA table for an Interpreted status of 'yes' and submits those that have been interpreted to ClinVar.
 
-# Process map
-![Image of workflow](clinvar_submissions_process.png)
+## Process map
+![Image of workflow](clinvar_submissions_process.png){height="600",style="display: block; margin: 0 auto" }
 
 **Inputs (required)**:
 
