@@ -4,10 +4,10 @@
 This script searches a given folder for Excel variant workbooks that have not previously been parsed successfully, extracts variants from those workbooks and adds variants to the INCA table. It then checks all the variants in the INCA table for an Interpreted status of 'yes' and submits those that have been interpreted to ClinVar.
 
 ## Process map
-![Image of workflow](clinvar_submissions_process.png){height="600",style="display: block; margin: 0 auto" }
+![Image of workflow](clinvar_submissions_process.png)
 
-**Inputs (required)**:
-
+## Inputs
+**Required:**
 * `--clinvar_api_key`: JSON file containing ClinVar API keys for CUH and NUH. Should be in the format:
 
     ```JSON
@@ -27,7 +27,7 @@ This script searches a given folder for Excel variant workbooks that have not pr
     ```
 * `--config`: config file, should be the config.json in this repo.
 
-**Inputs (optional)**:
+**Optional:**
 * `--clinvar_testing`: (boolean) Default is False, if specified as True will use the test clinvar endpoint
 * `--print_submission_json`: (boolean) Default is False, if specified as True will print each clinvar submission to the terminal. This is useful for testing.
 * `--hold_for_review`: (boolean) Default is False, if specified as True, will add the variants to the database but not submit to ClinVar. Can be used to allow manual review before submission.
