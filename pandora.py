@@ -49,6 +49,11 @@ def parse_args():
         help='Boolean determining whether to print ClinVar submission JSONs'
         )
     parser.add_argument(
+        '--hold_for_review', action='store_true',
+        help='Boolean determining whether to hold submission of variants, '
+        'allowing for manual review in the db before submission.'
+        )
+    parser.add_argument(
         '--db_credentials', required=True,
         help='JSON containing credentials to connect to AWS database'
         )
@@ -165,29 +170,33 @@ def main():
 
     # Select all variants that have interpreted = yes and are not submitted
     # Also exclude any variants meeting exclusion criteria set in the config
-    exclude = config["exclude"]
-    cuh_df = db.select_variants_from_db(288359, engine, "NULL", exclude)
-    nuh_df = db.select_variants_from_db(509428, engine, "NULL", exclude)
-    print(
-        f"Found {nuh_df.shape[0]} interpreted variants to submit for NUH.\n"
-        f"Found {cuh_df.shape[0]} interpreted variants to submit for CUH."
-        )
-    cuh_df.url, cuh_df.header = config.get("CUH_acgs_url"), cuh_header
-    nuh_df.url, nuh_df.header = config.get("NUH_acgs_url"), nuh_header
+    if not args.hold_for_review:
+        exclude = config["exclude"]
+        cuh_df = db.select_variants_from_db(288359, engine, "NULL", exclude)
+        nuh_df = db.select_variants_from_db(509428, engine, "NULL", exclude)
+        print(
+            f"Found {nuh_df.shape[0]} interpreted variants to submit for NUH.\n"
+            f"Found {cuh_df.shape[0]} interpreted variants to submit for CUH."
+            )
+        cuh_df.url, cuh_df.header = config.get("CUH_acgs_url"), cuh_header
+        nuh_df.url, nuh_df.header = config.get("NUH_acgs_url"), nuh_header
 
-    # Get clinvar information from each variant and submit
-    for df in [cuh_df, nuh_df]:
-        if not df.empty:
-            variants = clinvar.collect_clinvar_data_to_submit(
-                df, config['ref_genomes']
-            )
-            response = clinvar.clinvar_api_request(
-                api_url, df.header, variants, df.url, args.print_submission_json
-            )
-            if args.clinvar_testing is False:
-                db.add_submission_id_to_db(
-                    response.json(), engine.connect(), df['local_id'].values
+        # Get clinvar information from each variant and submit
+        for df in [cuh_df, nuh_df]:
+            if not df.empty:
+                variants = clinvar.collect_clinvar_data_to_submit(
+                    df, config['ref_genomes']
                 )
+                response = clinvar.clinvar_api_request(
+                    api_url, df.header, variants, df.url,
+                    args.print_submission_json
+                )
+                if args.clinvar_testing is False:
+                    db.add_submission_id_to_db(
+                        response.json(),
+                        engine.connect(),
+                        df['local_id'].values
+                    )
 
 
 if __name__ == "__main__":
