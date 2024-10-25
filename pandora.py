@@ -10,6 +10,7 @@ import glob
 import utils.utils as utils
 import utils.clinvar as clinvar
 import utils.database_actions as db
+import warnings
 from openpyxl import load_workbook
 from sqlalchemy import create_engine
 
@@ -95,7 +96,11 @@ def main():
 
     engine = create_engine(url)
 
+    # Ignore UserWarnings from setting dataframe attributes
+    warnings.simplefilter(action='ignore', category=UserWarning)
+
     # Identify cases in database which have a submission ID but no accession ID
+    print("Searching for variants will no accession ID...")
     cuh_submission_df = db.select_variants_from_db(288359, engine, "NOT NULL")
     nuh_submission_df = db.select_variants_from_db(509428, engine, "NOT NULL")
 
@@ -168,6 +173,9 @@ def main():
             else:
                 print(f"{file} has already been parsed. Skipping...")
 
+    else:
+        print("no path_to_workbooks to specified. Nothing to parse")
+
     # Select all variants that have interpreted = yes and are not submitted
     # Also exclude any variants meeting exclusion criteria set in the config
     if not args.hold_for_review:
@@ -197,7 +205,8 @@ def main():
                         engine.connect(),
                         df['local_id'].values
                     )
-
+    else:
+        print("hold_for_review specified. Variants will not be submitted.")
 
 if __name__ == "__main__":
     main()
