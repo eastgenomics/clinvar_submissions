@@ -167,7 +167,7 @@ def main():
                 )
                 if df is not None:
                     if not df.empty:
-                        print(f"Adding {df.shape[0]} variants to INCA db...")
+                        print(f"{df.shape[0]} variants to add to inca table.")
                         db.add_variants_to_db(df, engine.connect())
                     db.update_db_for_parsed_wb(file, engine.connect())
             else:
