@@ -64,7 +64,7 @@ def get_workbook_data(workbook, config, filename, file, engine):
     error = check_interpreted_col(df_final)
     errors.append(error)
 
-    if not all(errors):
+    if any(error is not None for error in errors):
         errors_to_add = [err for err in errors if err is not None]
         error_to_add = ", ".join(errors_to_add)
         add_error_to_db(engine, file, error_to_add)
