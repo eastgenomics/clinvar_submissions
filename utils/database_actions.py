@@ -96,7 +96,7 @@ def select_variants_from_db(organisation_id, engine, submitted, exclude=""):
     '''
     df = pd.read_sql(
             "SELECT * FROM testdirectory.inca WHERE interpreted = 'yes' AND "
-            f"submission_id = '{submitted}' AND accession_id is NULL AND "
+            f"submission_id is {submitted} AND accession_id is NULL AND "
             f"organisation_id = '{organisation_id}'{exclude}",
             engine
         )
