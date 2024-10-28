@@ -158,10 +158,10 @@ class TestDatabasePandas(unittest.TestCase):
         pd_read_sql_mock.return_value = self.df
         expected_sql = (
             "SELECT * FROM testdirectory.inca WHERE interpreted = 'yes' AND "
-            "submission_id = 'SUB12345' AND accession_id is NULL AND "
+            "submission_id is NOT NULL AND accession_id is NULL AND "
             "organisation_id = '1234'"
         )
-        return_df = db.select_variants_from_db(1234, mock_engine, 'SUB12345')
+        return_df = db.select_variants_from_db(1234, mock_engine, 'NOT NULL')
 
         with self.subTest("Returns value from pd.read_sql()"):
             pd.testing.assert_frame_equal(return_df, self.df)
@@ -180,11 +180,11 @@ class TestDatabasePandas(unittest.TestCase):
         pd_read_sql_mock.return_value = self.df
         expected_sql = (
             "SELECT * FROM testdirectory.inca WHERE interpreted = 'yes' AND "
-            "submission_id = 'SUB12345' AND accession_id is NULL AND "
+            "submission_id is NULL AND accession_id is NULL AND "
             "organisation_id = '1234' AND panel != '_HGNC:7527'"
         )
         return_df = db.select_variants_from_db(
-            1234, mock_engine, 'SUB12345', exclude
+            1234, mock_engine, 'NULL', exclude
         )
 
         with self.subTest("Returns mocked value from pd.read_sql()"):
