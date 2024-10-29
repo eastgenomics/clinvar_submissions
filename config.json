@@ -16,7 +16,7 @@
     "CUH_acgs_url": "https://submit.ncbi.nlm.nih.gov/api/2.0/files/kf4l0sn8/uk-practice-guidelines-for-variant-classification-v4-01-2020.pdf/?format=attachment",
     "test_api_endpoint": "https://submit.ncbi.nlm.nih.gov/apitest/v1/submissions",
     "live_api_endpoint": "https://submit.ncbi.nlm.nih.gov/api/v1/submissions/",
-    "exclude": " AND panel != '_HGNC:7527' AND r_code NOT IN ('R444.1', 'R444.2')",
+    "exclude": " AND panel != '_HGNC:7527'",
     "ref_genomes": [
         "GRCh37.p13",
         "GRCh38.p13"

@@ -54,6 +54,57 @@ def extract_clinvar_information(variant_row, ref_genomes):
     return clinvar_dict
 
 
+def modify_for_R444_clinvar_submission(clinvar_dict, r_code):
+    '''
+    Edit clinvar_submission dict to add drug responsiveness information if this
+    is a R444 case, as these are pharmacogenomic cases.
+    Inputs:
+        clinvar_dict (dict): dict of data to submit to clinvar for one variant
+        r_code (str): test code for variant
+    Outputs:
+        clinvar_dict (dict): dict of data to submit to clinvar for one variant,
+        modified to make suitable for a pharmacogenomic variant submission
+    '''
+    # Get condition based on R code
+    if r_code == "R444.1":
+        condition = "Breast cancer"
+    else:
+        condition = "Prostate cancer"
+
+    interpretation = clinvar_dict['clinicalSignificance'][
+        'clinicalSignificanceDescription'
+    ]
+    translate = {
+        "Pathogenic": "Responsive",
+        "Likely pathogenic": "Likely responsive",
+        "Uncertain significance": "Uncertain responsiveness",
+        "Likely benign": "Likely not responsive",
+        "Benign": "Not responsive"
+    }
+    drug_response_details = translate.get(interpretation)
+
+    clinvar_dict['clinicalSignificance'][
+        "clinicalSignificanceDescription"
+    ] = "Responsive"
+    clinvar_dict['clinicalSignificance'][
+        "explanationOfDrugResponse"
+    ] = drug_response_details
+    clinvar_dict["conditionSet"] = {
+        "drugResponse": [
+            {
+            "condition": [{
+                "name": condition
+             }],
+            "db": "MedGen",
+            "id": "CN224080"
+            }
+        ]   
+    }
+    clinvar_dict['localID'] = 'uid3333333333'
+    clinvar_dict['localKey'] = 'uid3333333333'
+    return clinvar_dict
+
+
 def collect_clinvar_data_to_submit(clinvar_df, ref_genomes):
     '''
     Cycle through a dataframe, and extract variants for each row. Call the
@@ -69,6 +120,12 @@ def collect_clinvar_data_to_submit(clinvar_df, ref_genomes):
     variants = []
     for index, variant in clinvar_df.iterrows():
         clinvar_dict = extract_clinvar_information(variant, ref_genomes)
+
+        if variant["r_code"] in ["R444.1", "R444.2"]:
+            clinvar_dict = modify_for_R444_clinvar_submission(
+                clinvar_dict, variant["r_code"]
+            )
+
         variants.append(clinvar_dict)
 
     return variants

@@ -199,6 +199,7 @@ def main():
                     api_url, df.header, variants, df.url,
                     args.print_submission_json
                 )
+                print(response.json())
                 if args.clinvar_testing is False:
                     db.add_submission_id_to_db(
                         response.json(),
