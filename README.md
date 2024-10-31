@@ -25,7 +25,7 @@ This script searches a given folder for Excel variant workbooks that have not pr
         "endpoint": "asdfghjkl.rds.amazonaws.com"
     }
     ```
-* `--config`: config file, should be the config.json in this repo.
+* `--config`: config file, should be the config.json from https://github.com/eastgenomics/clinvar_submissions_config.
 
 **Optional:**
 * `--clinvar_testing`: (boolean) Default is False, if specified as True will use the test clinvar endpoint
