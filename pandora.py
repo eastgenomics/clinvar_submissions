@@ -65,6 +65,14 @@ def parse_args():
         '--config', required=True,
         help='JSON config file containing required inputs'
         )
+    parser.add_argument(
+        '--cuh', required=True,
+        help='boolean flag to determine whether handling CUH workbooks'
+        )
+    parser.add_argument(
+        '--nuh', required=True,
+        help='boolean flag to determine whether handling NUH workbooks'
+        )
     args = parser.parse_args()
     return args
 
