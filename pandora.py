@@ -100,7 +100,7 @@ def main():
     warnings.simplefilter(action='ignore', category=UserWarning)
 
     # Identify cases in database which have a submission ID but no accession ID
-    print("Searching for variants will no accession ID...")
+    print("Searching for variants with no accession ID...")
     cuh_submission_df = db.select_variants_from_db(288359, engine, "NOT NULL")
     nuh_submission_df = db.select_variants_from_db(509428, engine, "NOT NULL")
 
