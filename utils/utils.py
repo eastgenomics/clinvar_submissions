@@ -14,7 +14,7 @@ def get_folder_of_input_file(filename: str) -> str:
     '''
     Get the folder of input file
     Inputs:
-        filename (str): filename 
+        filename (str): filename
     Outputs:
         folder (str): folder name
     '''

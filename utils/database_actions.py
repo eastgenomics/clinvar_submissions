@@ -75,6 +75,8 @@ def add_submission_id_to_db(response, engine, variants):
         )
     else:
         error = response.get('message')
+        # santize error message for SQL
+        error = error.replace("'", "")
         engine.execute(
             f"UPDATE testdirectory.inca SET clinvar_status = 'ERROR: {error}' "
             f"WHERE local_id in ({submitted_variants})"
@@ -89,7 +91,7 @@ def select_variants_from_db(organisation_id, engine, submitted, exclude=""):
         engine (sqlalchemy.engine.Engine): SQLAlchemy connection to AWS db
         submitted (str): value for column submission_id to filter SQL SELECT
         statement on
-        exclude (str): Optional string for further filtering. 
+        exclude (str): Optional string for further filtering.
     Outputs
         df (pandas.DataFrame): dataframe of records in table that meet the
         given filter
