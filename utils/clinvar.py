@@ -9,7 +9,7 @@ def extract_clinvar_information(variant_row, ref_genomes):
     Extract information from Shire variant record and reformat into dictionary
     Inputs:
         variant: row from variant dataframe with data for one variant
-        ref_genomes (list): list of valid reference genome values from config 
+        ref_genomes (list): list of valid reference genome values from config
     outputs:
         clinvar_dict: dictionary of data to submit to clinvar
     '''

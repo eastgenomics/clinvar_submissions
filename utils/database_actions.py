@@ -102,9 +102,10 @@ def select_variants_from_db(organisation_id, engine, submitted, exclude=""):
     '''
     query_str = (
         "SELECT * FROM testdirectory.inca "
-        "WHERE interpreted = 'yes' AND submission_id is " + submitted +
-        " AND accession_id is NULL AND organisation_id = :org_id" +
-        exclude
+        "WHERE interpreted = 'yes' AND submission_id IS " + submitted +
+        " AND accession_id IS NULL AND organisation_id = :org_id"
+        " AND allele_origin = 'germline' "
+        + exclude
     )
     df = pd.read_sql(text(query_str), engine, params={"org_id": organisation_id})
     return df
