@@ -4,10 +4,10 @@ import datetime
 def add_variants_to_db(df, engine):
     '''
     Update inca table to add variants
-    Inputs
+    Inputs:
         df (pd.Dataframe): dataframe with variant information
         engine (sqlalchemy.engine.Engine): SQLAlchemy connection to AWS db
-    Outputs
+    Outputs:
         None, adds data to db
     '''
     rows = df.to_sql(
@@ -23,11 +23,11 @@ def add_variants_to_db(df, engine):
 def add_wb_to_db(workbook, parse_status, engine):
     '''
     Update inca_workbooks table to add workbooks
-    Inputs
+    Inputs:
         workbook (str): filename of workbook
         parse_status (str): value to use for parse_status
         engine (sqlalchemy.engine.Engine): SQLAlchemy connection to AWS db
-    Outputs
+    Outputs:
         None, adds data to db
     '''
     now = datetime.datetime.now()
@@ -43,10 +43,10 @@ def update_db_for_parsed_wb(workbook, engine):
     '''
     Update inca_workbooks table to set parse_status to true for parsed
     workbooks
-    Inputs
+    Inputs:
         workbook (str): filename of workbook
         engine (sqlalchemy.engine.Engine): SQLAlchemy connection to AWS db
-    Outputs
+    Outputs:
         None, adds data to db
     '''
     engine.execute(
@@ -58,11 +58,11 @@ def update_db_for_parsed_wb(workbook, engine):
 def add_submission_id_to_db(response, engine, variants):
     '''
     Add batch submission ID to inca table for all submitted variants
-    Inputs
+    Inputs:
         Response (dict): API response
         engine (sqlalchemy.engine.Engine): SQLAlchemy connection to AWS db
         variants (list): list of variants submitted in API call
-    Outputs
+    Outputs:
         None, adds data to db
     '''
     add_quotes = [f"'{x}'" for x in variants]
@@ -84,13 +84,13 @@ def add_submission_id_to_db(response, engine, variants):
 def select_variants_from_db(organisation_id, engine, submitted, exclude=""):
     '''
     Select variants from inca table
-    Inputs
+    Inputs:
         organisation_id (str): ClinVar organisation ID for NUH or CUH
         engine (sqlalchemy.engine.Engine): SQLAlchemy connection to AWS db
         submitted (str): value for column submission_id to filter SQL SELECT
         statement on
         exclude (str): Optional string for further filtering. 
-    Outputs
+    Outputs:
         df (pandas.DataFrame): dataframe of records in table that meet the
         given filter
     '''
@@ -106,10 +106,10 @@ def select_variants_from_db(organisation_id, engine, submitted, exclude=""):
 def select_workbooks_from_db(engine, parameter):
     '''
     Select workbooks from inca_workbooks table
-    Inputs
+    Inputs:
         engine (sqlalchemy.engine.Engine): SQLAlchemy connection to AWS db
         parameter (str): parameter to filter SQL SELECT statement on
-    Outputs
+    Outputs:
         df (pandas.DataFrame): dataframe of records in table that meet the
         given parameter
     '''
@@ -123,11 +123,11 @@ def select_workbooks_from_db(engine, parameter):
 def add_error_to_db(engine, workbook, error):
     '''
     If a workbook failed parsing, add the reason to the inca_workbooks table
-    Inputs
+    Inputs:
         engine (sqlalchemy.engine.Engine): SQLAlchemy connection to AWS db
         workbook (str): file name of workbook
         error (str): reason for workbook failing parsing
-    Outputs
+    Outputs:
         None, adds data to db
     '''
     engine.execute(
@@ -139,10 +139,10 @@ def add_error_to_db(engine, workbook, error):
 def add_accession_ids_to_db(accession_ids, engine):
     '''
     Add ClinVar accession IDs to INCA database
-    Inputs
+    Inputs:
         accession_ids (dict): dict mapping local_id to ClinVar accession ID
         engine (sqlalchemy.engine.Engine): SQLAlchemy connection to AWS db
-    Outputs
+    Outputs:
         None, adds data to db
     '''
     for local_id, accession in accession_ids.items():
@@ -155,11 +155,11 @@ def add_accession_ids_to_db(accession_ids, engine):
 def add_clinvar_submission_error_to_db(errors, engine):
     '''
     Add any ClinVar submission error to INCA database
-    Inputs
+    Inputs:
         errors (dict): dict mapping local_id to ClinVar submission error
         message
         engine (sqlalchemy.engine.Engine): SQLAlchemy connection to AWS db
-    Outputs
+    Outputs:
         None, adds data to db
     '''
     for local_id, error in errors.items():

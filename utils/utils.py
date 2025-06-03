@@ -26,13 +26,13 @@ def get_workbook_data(workbook, config, filename, file, engine):
     '''
     Function that runs functions to extract data from each sheet in the
     workbook and merges it together into one dataframe
-    Inputs
+    Inputs:
         workbook (openpyxl wb object): workbook being used
         config (dict): config variable
         filename (str): string of workbook name with preceding path
         file (str): string of workbook name without preceding path
         engine (SQLAlchemy engine): connection to database
-    Outputs
+    Outputs:
         df_final (pd.DataFrame): data frame extracted from workbook
     '''
     errors = []
@@ -76,11 +76,11 @@ def get_workbook_data(workbook, config, filename, file, engine):
 def get_summary_fields(workbook, config, filename):
     '''
     Extract data from summary sheet of variant workbook
-    Inputs
+    Inputs:
         workbook (openpyxl wb object): workbook being used
         config (dict): config variable
         filename (str): string of workbook name
-    Outputs
+    Outputs:
         df_summary (pd.DataFrame): data frame extracted from workbook summary
         sheet
         err_msg (str): error message
@@ -179,7 +179,7 @@ def get_included_fields(workbook, filename) -> pd.DataFrame:
     Inputs:
         workbook (openpyxl wb object): workbook being used
         filename (str): string of workbook name
-    Outputs
+    Outputs:
         df_included (pd.DataFrame): data frame extracted from included sheet
     '''
     num_variants = workbook["summary"]["C38"].value
@@ -234,7 +234,7 @@ def get_report_fields(workbook, config, df_included):
         workbook (openpyxl wb object): workbook being used
         config (dict): config variable
         df_included (pd.DataFrame): data frame extracted from included sheet
-    Outputs
+    Outputs:
         df_included (pd.DataFrame): dataframe extracted from interpret sheet(s)
         err_msg (str): error message
 
@@ -346,10 +346,10 @@ def select_api_url(clinvar_testing, config):
     '''
     Select which API URL to use depending on if this is a test run or if
     variants are planned to be submitted to ClinVar
-    Inputs
+    Inputs:
         clinvar_testing (bool): if True, use test API. If false, use live API
         config (dict): config variable containing URLS for API
-    Outputs
+    Outputs:
         api_url: clinvar api URL, either for the test API or the live API
     '''
     if clinvar_testing is True:
@@ -374,11 +374,11 @@ def check_interpret_table(df_interpret, df_included, config):
     '''
     Check if ACMG classification and HGVSc are correctly
     filled in in the interpret table(s)
-    Inputs
+    Inputs:
         df_interpret (pd.Dataframe): df from interpret sheet(s)
         df_included (pd.Dataframe): df from included sheet
         config (dict): config variable
-    Outputs
+    Outputs:
       error_msg (str): error message
     '''
     error_msg = []
@@ -429,9 +429,9 @@ def check_interpret_table(df_interpret, df_included, config):
 def checking_sheets(workbook):
     '''
     Check if extra row(s)/col(s) are added in the sheets
-    Inputs
+    Inputs:
         workbook (openpyxl wb object): object of query workbook with variants
-    Outputs
+    Outputs:
         error_msg (str): error message
     '''
     summary = workbook["summary"]
@@ -464,7 +464,7 @@ def checking_sheets(workbook):
 def check_interpreted_col(df):
     '''
     Check if interpreted col in included sheet is correctly filled in
-    Inputs
+    Inputs:
         df (pd.DataFrame): merged dataframe with data from workbook
         error_msg (str): error message
     '''
@@ -502,10 +502,10 @@ def check_interpreted_col(df):
 def check_sample_name(instrumentID, sample_ID, batchID, testcode, probesetID):
     '''
     Checking that individual parts of sample name have expected naming format
-    Inputs
+    Inputs:
       str values for instrumentID, sample_ID, batchID, testcode,
       probesetID
-    Outputs
+    Outputs:
         error_msg (str): error message
     '''
     try:

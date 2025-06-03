@@ -17,9 +17,9 @@ from sqlalchemy import create_engine
 
 def open_json(file):
     '''
-    Inputs
+    Inputs:
         file (str): path to json file
-    Outputs
+    Outputs:
         contents (dict): the contents of that JSON as a dict
     '''
     with open(file) as f:

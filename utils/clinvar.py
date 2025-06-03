@@ -59,10 +59,10 @@ def collect_clinvar_data_to_submit(clinvar_df, ref_genomes):
     Cycle through a dataframe, and extract variants for each row. Call the
     function to reformat this into a dictionary for submission to ClinVar and
     return a list of these dictionaries
-    Inputs
+    Inputs:
         clinvar_df (pandas.Dataframe): variant dataframe
         ref_genomes (list): list of valid reference genome values from config
-    Outputs
+    Outputs:
         variants (list): list of dictionaries with variant data for submission
         to ClinVar
     '''
@@ -134,7 +134,7 @@ def clinvar_api_request(url, header, var_list, org_guidelines_url, print_json):
 def process_submission_status(status, response):
     '''
     Process response to API query about submission status.
-    Inputs
+    Inputs:
         status (str): Overall submission status
         response (dict): API response, which is a breakdown the response for
         each variant or errors if submission failed.
