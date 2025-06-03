@@ -1,5 +1,6 @@
 import pandas as pd
 import datetime
+from sqlalchemy import text
 
 def add_variants_to_db(df, engine):
     '''
@@ -130,10 +131,12 @@ def add_error_to_db(engine, workbook, error):
     Outputs:
         None, adds data to db
     '''
-    engine.execute(
-        "UPDATE testdirectory.inca_workbooks SET parse_status = FALSE, "
-        f"comment = '{error}' WHERE workbook_name = '{workbook}'"
-    )
+    query = text("""
+        UPDATE testdirectory.inca_workbooks
+        SET parse_status = FALSE, comment = :err
+        WHERE workbook_name = :wb
+    """)
+    engine.execute(query, {"err": error, "wb": workbook})
 
 
 def add_accession_ids_to_db(accession_ids, engine):
