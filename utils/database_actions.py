@@ -32,12 +32,14 @@ def add_wb_to_db(workbook, parse_status, engine):
         None, adds data to db
     '''
     now = datetime.datetime.now()
-    engine.execute(
-        f"INSERT INTO testdirectory.inca_workbooks"
-        " (workbook_name, date, parse_status) "
-        f"VALUES ('{workbook}', '{now}', {parse_status}) "
-        "ON CONFLICT (workbook_name) DO NOTHING"
-    )
+
+    query = text("""
+        INSERT INTO testdirectory.inca_workbooks
+        (workbook_name, date, parse_status)
+        VALUES (:wb, :date, :status)
+        ON CONFLICT (workbook_name) DO NOTHING
+    """)
+    engine.execute(query, {"wb": workbook, "date": now, "status": parse_status})
 
 
 def update_db_for_parsed_wb(workbook, engine):
@@ -50,10 +52,12 @@ def update_db_for_parsed_wb(workbook, engine):
     Outputs:
         None, adds data to db
     '''
-    engine.execute(
-        "UPDATE testdirectory.inca_workbooks SET parse_status = TRUE "
-        f"WHERE workbook_name = '{workbook}'"
-    )
+    query = text("""
+        UPDATE testdirectory.inca_workbooks
+        SET parse_status = TRUE
+        WHERE workbook_name = :wb
+    """)
+    engine.execute(query, {"wb": workbook})
 
 
 def add_submission_id_to_db(response, engine, variants):
@@ -69,6 +73,7 @@ def add_submission_id_to_db(response, engine, variants):
     add_quotes = [f"'{x}'" for x in variants]
     submitted_variants = ", ".join(add_quotes)
     sub_id = response.get('id')
+
     if sub_id:
         engine.execute(
             f"UPDATE testdirectory.inca SET submission_id = '{sub_id}' "
@@ -90,17 +95,18 @@ def select_variants_from_db(organisation_id, engine, submitted, exclude=""):
         engine (sqlalchemy.engine.Engine): SQLAlchemy connection to AWS db
         submitted (str): value for column submission_id to filter SQL SELECT
         statement on
-        exclude (str): Optional string for further filtering. 
+        exclude (str): Optional string for further filtering.
     Outputs:
         df (pandas.DataFrame): dataframe of records in table that meet the
         given filter
     '''
-    df = pd.read_sql(
-            "SELECT * FROM testdirectory.inca WHERE interpreted = 'yes' AND "
-            f"submission_id is {submitted} AND accession_id is NULL AND "
-            f"organisation_id = '{organisation_id}'{exclude}",
-            engine
-        )
+    query_str = (
+        "SELECT * FROM testdirectory.inca "
+        "WHERE interpreted = 'yes' AND submission_id is " + submitted +
+        " AND accession_id is NULL AND organisation_id = :org_id" +
+        exclude
+    )
+    df = pd.read_sql(text(query_str), engine, params={"org_id": organisation_id})
     return df
 
 
@@ -114,10 +120,9 @@ def select_workbooks_from_db(engine, parameter):
         df (pandas.DataFrame): dataframe of records in table that meet the
         given parameter
     '''
-    df = pd.read_sql(
-            f"SELECT * FROM testdirectory.inca_workbooks WHERE {parameter}",
-            engine
-        )
+    query = f"SELECT * FROM testdirectory.inca_workbooks WHERE {parameter}"
+    df = pd.read_sql(text(query), engine)
+
     return df
 
 
@@ -149,9 +154,13 @@ def add_accession_ids_to_db(accession_ids, engine):
         None, adds data to db
     '''
     for local_id, accession in accession_ids.items():
+        query = text("""
+            UPDATE testdirectory.inca
+            SET accession_id = :accession
+            WHERE local_id = :local_id
+        """)
         engine.execute(
-            f"UPDATE testdirectory.inca SET accession_id = '{accession}' "
-            f"WHERE local_id = '{local_id}'"
+            query, {"accession": accession, "local_id": local_id}
         )
 
 
@@ -166,7 +175,11 @@ def add_clinvar_submission_error_to_db(errors, engine):
         None, adds data to db
     '''
     for local_id, error in errors.items():
+        query = text("""
+            UPDATE testdirectory.inca
+            SET clinvar_status = :error
+            WHERE local_id = :local_id
+        """)
         engine.execute(
-            f"UPDATE testdirectory.inca SET clinvar_status = 'ERROR: {error}' "
-            f"WHERE local_id = '{local_id}'"
+            query, {"error": error, "local_id": local_id}
         )
