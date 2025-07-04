@@ -22,7 +22,7 @@ def get_folder_of_input_file(filename: str) -> str:
     return folder
 
 
-def get_workbook_data(workbook, config, filename, file, engine):
+def get_workbook_data(workbook, config, filename, file, engine, organisation):
     '''
     Function that runs functions to extract data from each sheet in the
     workbook and merges it together into one dataframe
@@ -32,12 +32,16 @@ def get_workbook_data(workbook, config, filename, file, engine):
         filename (str): string of workbook name with preceding path
         file (str): string of workbook name without preceding path
         engine (SQLAlchemy engine): connection to database
+        organisation (str): string of organisation name, either CUH or NUH
     Outputs:
         df_final (pd.DataFrame): data frame extracted from workbook
     '''
     errors = []
     # get data from summary sheet, included variants sheet and interpret sheets
-    df_summary, error = get_summary_fields(workbook, config, filename)
+    df_summary, error = get_summary_fields(
+        workbook, config,
+        filename, organisation
+        )
     errors.append(error)
     df_included = get_included_fields(workbook, filename)
     df_interpret, error = get_report_fields(workbook, config, df_included)
@@ -73,13 +77,13 @@ def get_workbook_data(workbook, config, filename, file, engine):
     return df_final
 
 
-def get_summary_fields(workbook, config, filename):
+def get_summary_fields(workbook, config, organisation):
     '''
     Extract data from summary sheet of variant workbook
     Inputs:
         workbook (openpyxl wb object): workbook being used
         config (dict): config variable
-        filename (str): string of workbook name
+        organisation (str): string of organisation name, either CUH or NUH
     Outputs:
         df_summary (pd.DataFrame): data frame extracted from workbook summary
         sheet
@@ -156,14 +160,12 @@ def get_summary_fields(workbook, config, filename):
     df_summary["allele_origin"] = config.get("Allele origin")
     df_summary["affected_status"] = config.get("Affected status")
 
-    # getting the folder name of workbook
-    # the folder name should return designated folder for either CUH or NUH
-    folder_name = get_folder_of_input_file(filename)
-    if folder_name == config.get("CUH folder"):
+    # Set organisation and organisation_id based on laboratory
+    if organisation == "CUH":
         df_summary["organisation"] = config.get("CUH Organisation")
         df_summary["organisation_id"] = config.get("CUH org ID")
 
-    elif folder_name == config.get("NUH folder"):
+    elif organisation == "NUH":
         df_summary["organisation"] = config.get("NUH Organisation")
         df_summary["organisation_id"] = config.get("NUH org ID")
 

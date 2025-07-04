@@ -65,14 +65,8 @@ def parse_args():
         '--config', required=True,
         help='JSON config file containing required inputs'
         )
-    parser.add_argument(
-        '--cuh', required=True,
-        help='boolean flag to determine whether handling CUH workbooks'
-        )
-    parser.add_argument(
-        '--nuh', required=True,
-        help='boolean flag to determine whether handling NUH workbooks'
-        )
+    parser.add_argument("--organisation", choices=["CUH", "NUH"], required=True,
+                        help="Organisation: CUH or NUH")
     args = parser.parse_args()
     return args
 
@@ -171,7 +165,12 @@ def main():
 
                 # Get a df of data from each sheet in workbook:
                 df = utils.get_workbook_data(
-                    workbook, config, filename, file, engine.connect()
+                    workbook,
+                    config,
+                    filename,
+                    file,
+                    engine.connect(),
+                    args.organisation
                 )
                 if df is not None:
                     if not df.empty:
