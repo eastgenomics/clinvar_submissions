@@ -4,6 +4,7 @@ from utils.database_actions import add_error_to_db
 import pandas as pd
 import numpy as np
 import os
+import re
 import requests
 import json
 import uuid
@@ -161,6 +162,10 @@ def get_summary_fields(workbook, config, organisation):
     df_summary["affected_status"] = config.get("Affected status")
 
     # Set organisation and organisation_id based on laboratory
+    organisation = organisation.upper()
+    if organisation not in ["CUH", "NUH"]:
+        error_msg = "Organisation must be CUH or NUH"
+        return df_summary, error_msg
     if organisation == "CUH":
         df_summary["organisation"] = config.get("CUH Organisation")
         df_summary["organisation_id"] = config.get("CUH org ID")
@@ -168,7 +173,6 @@ def get_summary_fields(workbook, config, organisation):
     elif organisation == "NUH":
         df_summary["organisation"] = config.get("NUH Organisation")
         df_summary["organisation_id"] = config.get("NUH org ID")
-
     else:
         error_msg = "Workbook folder is not CUH or NUH folder given in config"
 
