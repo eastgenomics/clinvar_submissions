@@ -12,6 +12,7 @@ import utils.clinvar as clinvar
 import utils.database_actions as db
 import warnings
 from openpyxl import load_workbook
+import pandas as pd
 from sqlalchemy import create_engine
 
 
@@ -58,15 +59,24 @@ def parse_args():
         '--db_credentials', required=True,
         help='JSON containing credentials to connect to AWS database'
         )
-    parser.add_argument(
-        '--path_to_workbooks', help='Path to variant workbooks'
-        )
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument(
+        '--path_to_workbooks',
+        help='Path to variant workbooks'
+    )
+    group.add_argument(
+        '--samples_file',
+        help='Path to file containing Excel paths'
+    )
     parser.add_argument(
         '--config', required=True,
         help='JSON config file containing required inputs'
         )
-    parser.add_argument("--organisation", choices=["CUH", "NUH"], required=True,
-                        help="Organisation: CUH or NUH")
+    parser.add_argument('--organisation', choices=['CUH', 'NUH'], required=True,
+                        help='Organisation: CUH or NUH')
+    parser.add_argument('--dry-run', action='store_true',
+                        help='Run the script without making any changes '
+                        'to the database or submitting to ClinVar')
     args = parser.parse_args()
     return args
 
@@ -134,10 +144,18 @@ def main():
                         errors, engine.connect()
                     )
 
+    if args.dry_run:
+        print("Dry run specified. No changes will be made to the database or "
+              "ClinVar.")
     # Get any new workbooks and re-run any failed workbooks in given path
     if args.path_to_workbooks:
         print(f"Searching {args.path_to_workbooks}...")
         filenames = glob.glob(args.path_to_workbooks + "*.xlsx")
+        # remove any CNV workbooks
+        filenames = [f for f in filenames if not re.search(r'CNV', f, re.IGNORECASE)]
+        if not filenames:
+            print("No workbooks found in the specified path.")
+            SystemExit(1)
         print(f"Found {len(filenames)} workbooks")
 
         # Get previously parsed workbooks
@@ -172,16 +190,39 @@ def main():
                     engine.connect(),
                     args.organisation
                 )
-                if df is not None:
+                if args.dry_run:
+                    print("Parsed data:"
+                          f"\n{df.head()}\n{df.shape[0]} rows in total.")
+                    df = None
+                elif df is not None:
                     if not df.empty:
                         print(f"{df.shape[0]} variants to add to inca table.")
                         db.add_variants_to_db(df, engine.connect())
                     db.update_db_for_parsed_wb(file, engine.connect())
             else:
                 print(f"{file} has already been parsed. Skipping...")
+    elif args.samples_file:
+        print(f"Reading samples from {args.samples_file}...")
+        df = pd.read_csv("sample_file.csv")
+        paths = df[~df['file_name'].str.contains('CNV', case=False, na=False)]['path'].tolist()
+        print(f"Found {len(paths)} workbooks")
 
+        # Get previously parsed workbooks
+        parsed_workbook_df = db.select_workbooks_from_db(
+            engine, "parse_status = TRUE"
+        )
+        parsed_list = parsed_workbook_df['workbook_name'].values
+        failed_parsing_df = db.select_workbooks_from_db(
+            engine, "parse_status = FALSE"
+        )
+        failed_list = failed_parsing_df['workbook_name'].values
+
+        # Loop through each workbook in the samples file
+        for filename in paths:
+            print(f"Processing {filename}")
     else:
         print("no path_to_workbooks to specified. Nothing to parse")
+        SystemExit(1)
 
     # Select all variants that have interpreted = yes and are not submitted
     # Also exclude any variants meeting exclusion criteria set in the config
