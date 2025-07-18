@@ -33,13 +33,14 @@ def add_wb_to_db(workbook, parse_status, engine):
     '''
     now = datetime.datetime.now()
 
-    query = text("""
-        INSERT INTO testdirectory.inca_workbooks
-        (workbook_name, date, parse_status)
-        VALUES (:wb, :date, :status)
-        ON CONFLICT (workbook_name) DO NOTHING
-    """)
-    engine.execute(query, {"wb": workbook, "date": now, "status": parse_status})
+    with engine.connect() as conn:
+        result = conn.execute(
+            text("INSERT INTO testdirectory.inca_workbooks "
+                 "(workbook_name, date, parse_status) "
+                 "VALUES (:wb, :date, :status) "
+                 "ON CONFLICT (workbook_name) DO NOTHING"),
+            {"wb": workbook, "date": now, "status": parse_status}
+        )
 
 
 def update_db_for_parsed_wb(workbook, engine):
@@ -52,12 +53,14 @@ def update_db_for_parsed_wb(workbook, engine):
     Outputs:
         None, adds data to db
     '''
-    query = text("""
-        UPDATE testdirectory.inca_workbooks
-        SET parse_status = TRUE
-        WHERE workbook_name = :wb
-    """)
-    engine.execute(query, {"wb": workbook})
+
+    with engine.connect() as conn:
+        result = conn.execute(
+            text("UPDATE testdirectory.inca_workbooks "
+                 "SET parse_status = TRUE "
+                 "WHERE workbook_name = :wb"),
+            {"wb": workbook}
+        )
 
 
 def add_submission_id_to_db(response, engine, variants):
@@ -100,6 +103,10 @@ def select_variants_from_db(organisation_id, engine, submitted, exclude=""):
         df (pandas.DataFrame): dataframe of records in table that meet the
         given filter
     '''
+    # santise organisation_id to ensure it is a string
+    if not isinstance(organisation_id, str):
+        organisation_id = str(organisation_id)
+
     query_str = (
         "SELECT * FROM testdirectory.inca "
         "WHERE interpreted = 'yes' AND submission_id IS " + submitted +
@@ -142,7 +149,8 @@ def add_error_to_db(engine, workbook, error):
         SET parse_status = FALSE, comment = :err
         WHERE workbook_name = :wb
     """)
-    engine.execute(query, {"err": error, "wb": workbook})
+    with engine.connect() as conn:
+        conn.execute(query, {"err": error, "wb": workbook})
 
 
 def add_accession_ids_to_db(accession_ids, engine):
@@ -175,12 +183,13 @@ def add_clinvar_submission_error_to_db(errors, engine):
     Outputs:
         None, adds data to db
     '''
-    for local_id, error in errors.items():
-        query = text("""
-            UPDATE testdirectory.inca
-            SET clinvar_status = :error
-            WHERE local_id = :local_id
-        """)
-        engine.execute(
-            query, {"error": error, "local_id": local_id}
-        )
+    with engine.connect() as conn:
+        # Iterate through errors and update each local_id with its error
+        for local_id, error in errors.items():
+            query = text("""
+                UPDATE testdirectory.inca
+                SET clinvar_status = :error
+                WHERE local_id = :local_id
+            """)
+            conn.execute(query, {"error": error, "local_id": local_id})
+

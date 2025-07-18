@@ -8,61 +8,50 @@ import pandas as pd
 
 
 class TestDatabaseEngine(unittest.TestCase):
-    '''
+    """
     Test all the functions in database_actions which generate SQL queries to
     read from the database using the SQLAlchemy engine directly
-    '''
-    variants = ['uid_12345', 'uid_67890']
+    """
 
-    # @freeze_time("2024-07-10 22:22:22")
-    # def test_add_wb_to_db(self):
-    #     '''
-    #     Test that add_wb_to_db is called with the expected SQL when given
-    #     example inputs
-    #     '''
-    #     mock_engine = mock.MagicMock()
-    #     expected_sql = (
-    #         "INSERT INTO testdirectory.inca_workbooks "
-    #         "(workbook_name, date, parse_status) "
-    #         "VALUES ('test_workbook.xlsx', '2024-07-10 22:22:22', FAIL) "
-    #         "ON CONFLICT (workbook_name) DO NOTHING"
-    #     )
-    #     db.add_wb_to_db('test_workbook.xlsx', 'FAIL', mock_engine)
-    #     mock_engine.execute.assert_called_once_with(expected_sql)
+    variants = ["uid_12345", "uid_67890"]
 
     @freeze_time("2024-07-10 22:22:22")
     def test_add_wb_to_db(self):
-        '''
+        """
         Test that add_wb_to_db is called with the expected SQL when given
         example inputs
-        '''
+        """
+        # Prepare mock engine and connection
         mock_engine = mock.MagicMock()
+        mock_conn = mock.MagicMock()
+        mock_engine.connect.return_value.__enter__.return_value = mock_conn
 
         expected_call = call(
-            ANY,
-            {"wb": 'test_workbook.xlsx', "date": mock.ANY, "status": 'FAIL'}
+            ANY, {"wb": "test_workbook.xlsx", "date": mock.ANY, "status": "FAIL"}
         )
 
-        db.add_wb_to_db('test_workbook.xlsx', 'FAIL', mock_engine)
-        mock_engine.execute.assert_called_once_with(
-            mock.ANY,
-            {"wb": 'test_workbook.xlsx', "date": mock.ANY, "status": 'FAIL'}
+        db.add_wb_to_db("test_workbook.xlsx", "FAIL", mock_engine)
+        mock_conn.execute.assert_called_once_with(
+            mock.ANY, {"wb": "test_workbook.xlsx", "date": mock.ANY, "status": "FAIL"}
         )
         # Check expected call was made
-        self.assertIn(expected_call, mock_engine.execute.call_args_list)
+        self.assertIn(expected_call, mock_conn.execute.call_args_list)
 
     def test_update_db_for_parsed_wb(self):
+        # Prepare mock engine and connection
         mock_engine = mock.MagicMock()
+        mock_conn = mock.MagicMock()
+        mock_engine.connect.return_value.__enter__.return_value = mock_conn
 
-        db.update_db_for_parsed_wb('test_workbook.xlsx', mock_engine)
+        db.update_db_for_parsed_wb("test_workbook.xlsx", mock_engine)
 
         # Check that execute was called once
-        mock_engine.execute.assert_called_once()
+        mock_conn.execute.assert_called_once()
 
         # Get the call arguments
-        call_args = mock_engine.execute.call_args
+        call_args = mock_conn.execute.call_args
         sql_text_obj = call_args[0][0]  # First argument (the text object)
-        params = call_args[0][1]        # Second argument (the parameters dict)
+        params = call_args[0][1]  # Second argument (the parameters dict)
 
         # Convert text object to string to check SQL content
         actual_sql = str(sql_text_obj)
@@ -73,14 +62,12 @@ class TestDatabaseEngine(unittest.TestCase):
             self.assertIn("WHERE workbook_name = :wb", actual_sql)
 
         with self.subTest("Parameters are correct"):
-            expected_params = {
-                'wb': 'test_workbook.xlsx'
-            }
+            expected_params = {"wb": "test_workbook.xlsx"}
             self.assertEqual(params, expected_params)
 
     def test_add_submission_id_to_db_if_submission_id_returned(self):
         mock_engine = mock.MagicMock()
-        response = {'id': 'SUB123456'}
+        response = {"id": "SUB123456"}
         expected_sql = (
             "UPDATE testdirectory.inca SET submission_id = 'SUB123456' "
             "WHERE local_id in ('uid_12345', 'uid_67890')"
@@ -90,7 +77,7 @@ class TestDatabaseEngine(unittest.TestCase):
 
     def test_add_submission_id_to_db_if_error_returned(self):
         mock_engine = mock.MagicMock()
-        response = {'message': "No valid API key provided"}
+        response = {"message": "No valid API key provided"}
         expected_sql = (
             "UPDATE testdirectory.inca SET clinvar_status = 'ERROR: No valid "
             "API key provided' WHERE local_id in ('uid_12345', 'uid_67890')"
@@ -99,17 +86,20 @@ class TestDatabaseEngine(unittest.TestCase):
         mock_engine.execute.assert_called_once_with(expected_sql)
 
     def test_add_error_to_db(self):
+        # Prepare mock engine and connection
         mock_engine = mock.MagicMock()
+        mock_conn = mock.MagicMock()
+        mock_engine.connect.return_value.__enter__.return_value = mock_conn
 
-        db.add_error_to_db(mock_engine, 'test_workbook.xlsx', 'Parsing error')
+        db.add_error_to_db(mock_engine, "test_workbook.xlsx", "Parsing error")
 
         # Check that execute was called once
-        mock_engine.execute.assert_called_once()
+        mock_conn.execute.assert_called_once()
 
         # Get the call arguments
-        call_args = mock_engine.execute.call_args
+        call_args = mock_conn.execute.call_args
         sql_text_obj = call_args[0][0]  # First argument (the text object)
-        params = call_args[0][1]        # Second argument (the parameters dict)
+        params = call_args[0][1]  # Second argument (the parameters dict)
 
         # Convert text object to string to check SQL content
         actual_sql = str(sql_text_obj)
@@ -121,18 +111,12 @@ class TestDatabaseEngine(unittest.TestCase):
             self.assertIn("WHERE workbook_name = :wb", actual_sql)
 
         with self.subTest("Parameters are correct"):
-            expected_params = {
-                'err': 'Parsing error',
-                'wb': 'test_workbook.xlsx'
-            }
+            expected_params = {"err": "Parsing error", "wb": "test_workbook.xlsx"}
             self.assertEqual(params, expected_params)
 
     def test_add_accession_ids_to_db(self):
         mock_engine = mock.MagicMock()
-        accession_ids = {
-            'uid_12345': 'SCV000012345',
-            'uid_67890': 'SCV000067890'
-        }
+        accession_ids = {"uid_12345": "SCV000012345", "uid_67890": "SCV000067890"}
 
         db.add_accession_ids_to_db(accession_ids, mock_engine)
 
@@ -143,78 +127,90 @@ class TestDatabaseEngine(unittest.TestCase):
         calls = mock_engine.execute.call_args_list
 
         # Extract the parameters from each call
-        call_params = [call[0][1] for call in calls]  # Get the second argument (params dict)
+        call_params = [
+            call[0][1] for call in calls
+        ]  # Get the second argument (params dict)
 
         expected_params = [
-            {'accession': 'SCV000012345', 'local_id': 'uid_12345'},
-            {'accession': 'SCV000067890', 'local_id': 'uid_67890'}
+            {"accession": "SCV000012345", "local_id": "uid_12345"},
+            {"accession": "SCV000067890", "local_id": "uid_67890"},
         ]
 
         # Check that both sets of parameters were used
         for expected in expected_params:
             self.assertIn(expected, call_params)
 
-
-    def test_add_clinvar_submission_error_to_db(self):
-
+    @mock.patch("utils.database_actions.text")
+    def test_add_clinvar_submission_error_to_db(self, mock_text):
+        # Prepare mock engine and connection
         mock_engine = mock.MagicMock()
+        mock_conn = mock.MagicMock()
+        mock_engine.connect.return_value.__enter__.return_value = mock_conn
+
         errors = {
-            'uid_12345': 'This record is submitted as novel but it should be '
-            'submitted as an update',
-            'uid_67890': 'The identifier you provided (MONDO:MONDO:0000) '
-            'cannot be validated'
+            "uid_12345": "This record is submitted as novel but it should be submitted as an update",
+            "uid_67890": "The identifier you provided (MONDO:MONDO:0000) cannot be validated",
         }
 
-        expected_calls = [
-            call(ANY, {'error': 'This record is submitted as novel but it should be submitted as an update', 'local_id': 'uid_12345'}),
-            call(ANY, {'error': 'The identifier you provided (MONDO:MONDO:0000) cannot be validated', 'local_id': 'uid_67890'}),
-        ]
-
+        # Call the function
         db.add_clinvar_submission_error_to_db(errors, mock_engine)
 
-        assert mock_engine.execute.call_count == 2
-        mock_engine.execute.assert_has_calls(expected_calls, any_order=True)
+        # Check that execute was called for each error
+        expected_calls = [
+            call(
+                mock_text.return_value,
+                {"error": errors["uid_12345"], "local_id": "uid_12345"},
+            ),
+            call(
+                mock_text.return_value,
+                {"error": errors["uid_67890"], "local_id": "uid_67890"},
+            ),
+        ]
+        assert mock_conn.execute.call_count == 2
+        mock_conn.execute.assert_has_calls(expected_calls, any_order=True)
 
 
 class TestDatabasePandas(unittest.TestCase):
-    '''
+    """
     Test all the functions in database_actions which interact with the
     database via pandas processes
-    '''
-    data = [{
-        "local_id": "uid-123456789",
-        "linking_id": "uid-123456789",
-        "chromosome": 7,
-        "start": 117232266,
-        "reference_allele": "C",
-        "alternate_allele": "CA",
-        "gene_symbol": "CFTR",
-        "comment_on_classification": "PVS1,PM3_Strong",
-        "germline_classification": "Pathogenic",
-        "date_last_evaluated": "2024-10-10",
-        "preferred_condition_name": "Cystic fibrosis",
-        "collection_method": "clinical testing",
-        "affected_status": "yes",
-        "allele_origin": "germline",
-        "ref_genome": "GRCh37.p13",
-    }]
+    """
+
+    data = [
+        {
+            "local_id": "uid-123456789",
+            "linking_id": "uid-123456789",
+            "chromosome": 7,
+            "start": 117232266,
+            "reference_allele": "C",
+            "alternate_allele": "CA",
+            "gene_symbol": "CFTR",
+            "comment_on_classification": "PVS1,PM3_Strong",
+            "germline_classification": "Pathogenic",
+            "date_last_evaluated": "2024-10-10",
+            "preferred_condition_name": "Cystic fibrosis",
+            "collection_method": "clinical testing",
+            "affected_status": "yes",
+            "allele_origin": "germline",
+            "ref_genome": "GRCh37.p13",
+        }
+    ]
     df = pd.DataFrame(data)
 
-    @mock.patch('pandas.DataFrame.to_sql')
+    @mock.patch("pandas.DataFrame.to_sql")
     def test_add_variants_to_db(self, pd_to_sql_mock):
         mock_engine = mock.MagicMock()
         db.add_variants_to_db(self.df, mock_engine)
         pd_to_sql_mock.assert_called_once_with(
-            "inca", mock_engine, if_exists='append', schema='testdirectory',
-            index=False
+            "inca", mock_engine, if_exists="append", schema="testdirectory", index=False
         )
 
-    @mock.patch('pandas.read_sql')
+    @mock.patch("pandas.read_sql")
     def test_select_variants_from_db(self, pd_read_sql_mock):
         mock_engine = mock.MagicMock()
         pd_read_sql_mock.return_value = self.df
 
-        return_df = db.select_variants_from_db(1234, mock_engine, 'NOT NULL')
+        return_df = db.select_variants_from_db("1234", mock_engine, "NOT NULL")
 
         with self.subTest("Returns value from pd.read_sql()"):
             pd.testing.assert_frame_equal(return_df, self.df)
@@ -225,9 +221,8 @@ class TestDatabasePandas(unittest.TestCase):
             call_args = pd_read_sql_mock.call_args
             # First arg should be a text object, second should be engine, third should be params
             self.assertEqual(len(call_args[0]), 2)  # Two positional args
-            self.assertIn('params', call_args[1])  # params as keyword arg
-            self.assertEqual(call_args[1]['params'], {'org_id': 1234})
-
+            self.assertIn("params", call_args[1])  # params as keyword arg
+            self.assertEqual(call_args[1]["params"], {"org_id": "1234"})
 
     def assertSQLContains(self, mock_call, expected_fragments, expected_params=None):
         """Helper method to assert SQL content and parameters"""
@@ -245,16 +240,16 @@ class TestDatabasePandas(unittest.TestCase):
 
         # Check parameters if provided
         if expected_params:
-            params = call_args[1].get('params', {})
+            params = call_args[1].get("params", {})
             for key, value in expected_params.items():
                 self.assertEqual(params[key], value)
 
-    @mock.patch('pandas.read_sql')
+    @mock.patch("pandas.read_sql")
     def test_select_variants_from_db_with_sql_check(self, pd_read_sql_mock):
         mock_engine = mock.MagicMock()
         pd_read_sql_mock.return_value = self.df
 
-        return_df = db.select_variants_from_db(1234, mock_engine, 'NOT NULL')
+        return_df = db.select_variants_from_db("1234", mock_engine, "NOT NULL")
 
         # Use helper to check SQL
         expected_fragments = [
@@ -262,25 +257,23 @@ class TestDatabasePandas(unittest.TestCase):
             "WHERE interpreted = 'yes'",
             "submission_id IS NOT NULL",
             "organisation_id = :org_id",
-            "allele_origin = 'germline'"
+            "allele_origin = 'germline'",
         ]
-        expected_params = {'org_id': 1234}
+        expected_params = {"org_id": "1234"}
 
         self.assertSQLContains(pd_read_sql_mock, expected_fragments, expected_params)
 
-    @mock.patch('pandas.read_sql')
+    @mock.patch("pandas.read_sql")
     def test_select_variants_from_db_with_exclude(self, pd_read_sql_mock):
-        '''
+        """
         Test that when an exclude value is passed to select_variants_from_db
         it is added to the query
-        '''
+        """
         mock_engine = mock.MagicMock()
         exclude = " AND panel != '_HGNC:7527'"
         pd_read_sql_mock.return_value = self.df
 
-        return_df = db.select_variants_from_db(
-            1234, mock_engine, 'NULL', exclude
-        )
+        return_df = db.select_variants_from_db("1234", mock_engine, "NULL", exclude)
 
         with self.subTest("Returns mocked value from pd.read_sql()"):
             pd.testing.assert_frame_equal(return_df, self.df)
@@ -298,22 +291,16 @@ class TestDatabasePandas(unittest.TestCase):
             self.assertIn("allele_origin = 'germline'", sql_text)
             self.assertIn("panel != '_HGNC:7527'", sql_text)  # The exclude part
 
-            self.assertEqual(call_args[1]['params'], {'org_id': 1234})
+            self.assertEqual(call_args[1]["params"], {"org_id": "1234"})
 
-
-    @mock.patch('pandas.read_sql')
+    @mock.patch("pandas.read_sql")
     def test_select_wb_from_db(self, pd_read_sql_mock):
         mock_engine = mock.MagicMock()
-        data = {
-            "workbook_name": ['test_wb.xlsx'],
-            "parse_status": False
-        }
+        data = {"workbook_name": ["test_wb.xlsx"], "parse_status": False}
         df = pd.DataFrame(data)
         pd_read_sql_mock.return_value = df
 
-        return_df = db.select_workbooks_from_db(
-            mock_engine, "parse_status = FALSE"
-        )
+        return_df = db.select_workbooks_from_db(mock_engine, "parse_status = FALSE")
 
         with self.subTest("Returns mocked value from pd.read_sql()"):
             pd.testing.assert_frame_equal(return_df, df)

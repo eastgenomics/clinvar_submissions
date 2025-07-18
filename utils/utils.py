@@ -40,8 +40,7 @@ def get_workbook_data(workbook, config, filename, file, engine, organisation):
     errors = []
     # get data from summary sheet, included variants sheet and interpret sheets
     df_summary, error = get_summary_fields(
-        workbook, config,
-        filename, organisation
+        workbook, config, organisation
         )
     errors.append(error)
     df_included = get_included_fields(workbook, filename)

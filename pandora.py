@@ -113,8 +113,8 @@ def main():
 
     # Identify cases in database which have a submission ID but no accession ID
     print("Searching for variants with no accession ID...")
-    cuh_submission_df = db.select_variants_from_db(288359, engine, "NOT NULL")
-    nuh_submission_df = db.select_variants_from_db(509428, engine, "NOT NULL")
+    cuh_submission_df = db.select_variants_from_db("288359", engine, "NOT NULL")
+    nuh_submission_df = db.select_variants_from_db("509428", engine, "NOT NULL")
 
     print(
         f"Found {nuh_submission_df.shape[0]} with submission IDs but no "
@@ -141,7 +141,7 @@ def main():
 
                 if errors != {}:
                     db.add_clinvar_submission_error_to_db(
-                        errors, engine.connect()
+                        errors, engine
                     )
 
     if args.dry_run:
@@ -179,7 +179,7 @@ def main():
                 )
                 workbook = load_workbook(filename)
                 if file not in failed_list:
-                    db.add_wb_to_db(file, "NULL", engine.connect())
+                    db.add_wb_to_db(file, None, engine) # Was NULL
 
                 # Get a df of data from each sheet in workbook:
                 df = utils.get_workbook_data(
@@ -187,7 +187,7 @@ def main():
                     config,
                     filename,
                     file,
-                    engine.connect(),
+                    engine,
                     args.organisation
                 )
                 if args.dry_run:
@@ -198,12 +198,12 @@ def main():
                     if not df.empty:
                         print(f"{df.shape[0]} variants to add to inca table.")
                         db.add_variants_to_db(df, engine.connect())
-                    db.update_db_for_parsed_wb(file, engine.connect())
+                    db.update_db_for_parsed_wb(file, engine)
             else:
                 print(f"{file} has already been parsed. Skipping...")
     elif args.samples_file:
         print(f"Reading samples from {args.samples_file}...")
-        df = pd.read_csv("sample_file.csv")
+        df = pd.read_csv(f"{args.samples_file}")
         paths = df[~df['file_name'].str.contains('CNV', case=False, na=False)]['path'].tolist()
         print(f"Found {len(paths)} workbooks")
 
@@ -220,6 +220,36 @@ def main():
         # Loop through each workbook in the samples file
         for filename in paths:
             print(f"Processing {filename}")
+            file = os.path.basename(filename)
+            if file not in parsed_list:
+                print(
+                    f"{file} has not previously been parsed successfully.\n"
+                    f"Parsing {file}..."
+                )
+                workbook = load_workbook(filename)
+                if file not in failed_list:
+                    db.add_wb_to_db(file, None, engine) # Was NULL
+
+                # Get a df of data from each sheet in workbook:
+                df = utils.get_workbook_data(
+                    workbook,
+                    config,
+                    filename,
+                    file,
+                    engine,
+                    args.organisation
+                )
+                if args.dry_run:
+                    print("Parsed data:"
+                          f"\n{df.head()}\n{df.shape[0]} rows in total.") # type: ignore
+                    df = None
+                elif df is not None:
+                    if not df.empty:
+                        print(f"{df.shape[0]} variants to add to inca table.")
+                        db.add_variants_to_db(df, engine.connect())
+                    db.update_db_for_parsed_wb(file, engine)
+            else:
+                print(f"{file} has already been parsed. Skipping...")
     else:
         print("no path_to_workbooks to specified. Nothing to parse")
         SystemExit(1)
@@ -228,8 +258,8 @@ def main():
     # Also exclude any variants meeting exclusion criteria set in the config
     if not args.hold_for_review:
         exclude = config["exclude"]
-        cuh_df = db.select_variants_from_db(288359, engine, "NULL", exclude)
-        nuh_df = db.select_variants_from_db(509428, engine, "NULL", exclude)
+        cuh_df = db.select_variants_from_db("288359", engine, "NULL", exclude)
+        nuh_df = db.select_variants_from_db("509428", engine, "NULL", exclude)
         print(
             f"Found {nuh_df.shape[0]} interpreted variants to submit for NUH.\n"
             f"Found {cuh_df.shape[0]} interpreted variants to submit for CUH."
