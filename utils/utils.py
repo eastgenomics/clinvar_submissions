@@ -48,7 +48,7 @@ def get_workbook_data(workbook, config, filename, file, engine, organisation):
     errors.append(error)
 
     # merge these to get one df
-    if not df_included.empty:
+    if not df_included.empty and not df_summary.empty:
         df_merged = pd.merge(df_included, df_summary, how="cross")
     else:
         df_merged = pd.concat([df_summary, df_included], axis=1)
@@ -245,6 +245,7 @@ def get_report_fields(workbook, config, df_included):
 
     '''
     field_cells = config.get("field_cells")
+    print(field_cells)
     col_name = [i[0] for i in field_cells]
     df_report = pd.DataFrame(columns=col_name)
     report_sheets = [
