@@ -6,3 +6,6 @@
 *.sqlite3
 *.json
 log.txt
+.tar.gz
+.coverage
+*.json
