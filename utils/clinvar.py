@@ -89,7 +89,7 @@ def create_header(api_key):
     return header
 
 
-def clinvar_api_request(url, header, var_list, org_guidelines_url, print_json):
+def clinvar_api_request(url, header, var_list, org_guidelines_url, print_json, no_retry_option=False):
     '''
     Make request to the ClinVar API endpoint specified.
     Inputs:
@@ -100,6 +100,9 @@ def clinvar_api_request(url, header, var_list, org_guidelines_url, print_json):
         different for CUH and NUH.
         print_json (boolean): controls whether or not to print each submission
         JSON
+    no_retry_option (boolean): if True, no retries will be attempted on
+        connection errors; if False, will retry up to 10 times with a backoff
+        factor of 0.5 seconds.
     Returns:
         response: API response object
     '''
@@ -125,7 +128,10 @@ def clinvar_api_request(url, header, var_list, org_guidelines_url, print_json):
         print(json.dumps(clinvar_data, indent=4, default=str))
 
     s = requests.Session()
-    retries = Retry(total=10, backoff_factor=0.5)
+    if no_retry_option:
+        retries = Retry(total=0)
+    else:
+        retries = Retry(total=10, backoff_factor=0.5)
     s.mount('https://', HTTPAdapter(max_retries=retries))
     response = s.post(url, data=json.dumps(clinvar_data, default=str), headers=header)
     return response

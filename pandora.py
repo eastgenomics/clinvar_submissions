@@ -13,6 +13,7 @@ import utils.database_actions as db
 import warnings
 from openpyxl import load_workbook
 import pandas as pd
+import re
 from sqlalchemy import create_engine
 
 
@@ -72,11 +73,19 @@ def parse_args():
         '--config', required=True,
         help='JSON config file containing required inputs'
         )
-    parser.add_argument('--organisation', choices=['CUH', 'NUH'], required=True,
-                        help='Organisation: CUH or NUH')
-    parser.add_argument('--dry-run', action='store_true',
-                        help='Run the script without making any changes '
-                        'to the database or submitting to ClinVar')
+    parser.add_argument(
+        '--organisation', choices=['CUH', 'NUH'], required=True,
+        help='Organisation: CUH or NUH'
+        )
+    parser.add_argument(
+        '--dry-run', action='store_true',
+        help='Run the script without making any changes '
+        'to the database or submitting to ClinVar'
+        )
+    parser.add_argument(
+        '--no-retry', action='store_true',
+        help='Do not retry failed submissions'
+    )
     args = parser.parse_args()
     return args
 
@@ -192,12 +201,13 @@ def main():
                 )
                 if args.dry_run:
                     print("Parsed data:"
-                          f"\n{df.head()}\n{df.shape[0]} rows in total.")
+                          f"\n{df.head()}\n{df.shape[0]} rows in total."
+                    )
                     df = None
                 elif df is not None:
                     if not df.empty:
                         print(f"{df.shape[0]} variants to add to inca table.")
-                        db.add_variants_to_db(df, engine.connect())
+                        db.add_variants_to_db(df, engine)
                     db.update_db_for_parsed_wb(file, engine)
             else:
                 print(f"{file} has already been parsed. Skipping...")
@@ -241,12 +251,15 @@ def main():
                 )
                 if args.dry_run:
                     print("Parsed data:"
-                          f"\n{df.head()}\n{df.shape[0]} rows in total.") # type: ignore
+                          f"\n{df.head()}\n{df.shape[0]} rows in total."
+                    )
+                    df.to_csv("parsed_data.csv", index=False)
+                    print("Saved parsed data to parsed_data.csv")
                     df = None
                 elif df is not None:
                     if not df.empty:
                         print(f"{df.shape[0]} variants to add to inca table.")
-                        db.add_variants_to_db(df, engine.connect())
+                        db.add_variants_to_db(df, engine)
                     db.update_db_for_parsed_wb(file, engine)
             else:
                 print(f"{file} has already been parsed. Skipping...")
@@ -275,12 +288,13 @@ def main():
                 )
                 response = clinvar.clinvar_api_request(
                     api_url, df.header, variants, df.url,
-                    args.print_submission_json
+                    args.print_submission_json,
+                    args.no_retry
                 )
                 if args.clinvar_testing is False:
                     db.add_submission_id_to_db(
                         response.json(),
-                        engine.connect(),
+                        engine,
                         df['local_id'].values
                     )
     else:
