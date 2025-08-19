@@ -120,42 +120,45 @@ def main():
     # Ignore UserWarnings from setting dataframe attributes
     warnings.simplefilter(action='ignore', category=UserWarning)
 
-    # Identify cases in database which have a submission ID but no accession ID
-    print("Searching for variants with no accession ID...")
-    cuh_submission_df = db.select_variants_from_db("288359", engine, "NOT NULL")
-    nuh_submission_df = db.select_variants_from_db("509428", engine, "NOT NULL")
-
-    print(
-        f"Found {nuh_submission_df.shape[0]} with submission IDs but no "
-        f"accession IDs for NUH.\nFound {cuh_submission_df.shape[0]} "
-        "with submission IDs but no accession IDs for CUH."
-        )
-
-    cuh_submission_df.header = cuh_header
-    nuh_submission_df.header = nuh_header
-
-    # If any exist, query clinvar API to retrieve accession IDs
-    for df in [cuh_submission_df, nuh_submission_df]:
-        if not df.empty:
-            for submission_id in list(df["submission_id"].unique()):
-                status, response = utils.submission_status_check(
-                    submission_id, df.header, api_url
-                )
-                accession_ids, errors = clinvar.process_submission_status(
-                    status, response
-                )
-
-                if accession_ids != {}:
-                    db.add_accession_ids_to_db(accession_ids, engine)
-
-                if errors != {}:
-                    db.add_clinvar_submission_error_to_db(
-                        errors, engine
-                    )
 
     if args.dry_run:
-        print("Dry run specified. No changes will be made to the database or "
-              "ClinVar.")
+        print("Dry run specified. No need to query DB and clinvar API. "
+              "No changes will be submitted to the database or ClinVar.")
+    else:
+        # Identify cases in database which have a submission ID but no accession ID
+        print("Searching for variants with no accession ID...")
+        cuh_submission_df = db.select_variants_from_db("288359", engine, "NOT NULL")
+        nuh_submission_df = db.select_variants_from_db("509428", engine, "NOT NULL")
+
+        print(
+            f"Found {nuh_submission_df.shape[0]} with submission IDs but no "
+            f"accession IDs for NUH.\nFound {cuh_submission_df.shape[0]} "
+            "with submission IDs but no accession IDs for CUH."
+            )
+
+        cuh_submission_df.header = cuh_header
+        nuh_submission_df.header = nuh_header
+
+        # If any exist, query clinvar API to retrieve accession IDs
+        for df in [cuh_submission_df, nuh_submission_df]:
+            if not df.empty:
+                for submission_id in list(df["submission_id"].unique()):
+                    status, response = utils.submission_status_check(
+                        submission_id, df.header, api_url
+                    )
+                    accession_ids, errors = clinvar.process_submission_status(
+                        status, response
+                    )
+
+                    if accession_ids != {}:
+                        db.add_accession_ids_to_db(accession_ids, engine)
+
+                    if errors != {}:
+                        db.add_clinvar_submission_error_to_db(
+                            errors, engine
+                        )
+
+
     # Get any new workbooks and re-run any failed workbooks in given path
     if args.path_to_workbooks:
         print(f"Searching {args.path_to_workbooks}...")
