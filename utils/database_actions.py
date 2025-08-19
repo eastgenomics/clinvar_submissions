@@ -12,7 +12,7 @@ def add_variants_to_db(df, engine):
     Outputs:
         None, adds data to db
     '''
-    with engine.connect() as conn:
+    with engine.begin() as conn:
         # Ensure the DataFrame is not empty before attempting to write
         if df.empty:
             print("No variants to add to inca table.")
@@ -41,7 +41,7 @@ def add_wb_to_db(workbook, parse_status, engine):
     '''
     now = datetime.datetime.now()
 
-    with engine.connect() as conn:
+    with engine.begin() as conn:
         result = conn.execute(
             text("INSERT INTO testdirectory.inca_workbooks "
                  "(workbook_name, date, parse_status) "
@@ -63,7 +63,7 @@ def update_db_for_parsed_wb(workbook, engine):
         None, adds data to db
     '''
 
-    with engine.connect() as conn:
+    with engine.begin() as conn:
         result = conn.execute(
             text("UPDATE testdirectory.inca_workbooks "
                  "SET parse_status = TRUE "
@@ -86,7 +86,7 @@ def add_submission_id_to_db(response, engine, variants):
     add_quotes = [f"'{x}'" for x in variants]
     submitted_variants = ", ".join(add_quotes)
     sub_id = response.get('id')
-    with engine.connect() as conn:
+    with engine.begin() as conn:
         # If submission ID exists, update the inca table with it
         # Otherwise, update the inca table with an error message
         if sub_id:
@@ -145,8 +145,9 @@ def select_workbooks_from_db(engine, parameter):
         given parameter
     '''
     query = f"SELECT * FROM testdirectory.inca_workbooks WHERE {parameter}"
-    df = pd.read_sql(text(query), engine)
-
+    with engine.connect() as conn:
+        # Use text to safely parameterize the query
+        df = pd.read_sql(text(query), conn)
     return df
 
 
@@ -166,7 +167,7 @@ def add_error_to_db(engine, workbook, error):
         SET parse_status = FALSE, comment = :err
         WHERE workbook_name = :wb
     """)
-    with engine.connect() as conn:
+    with engine.begin() as conn:
         conn.execute(query, {"err": error, "wb": workbook})
 
 
@@ -180,15 +181,14 @@ def add_accession_ids_to_db(accession_ids, engine):
     Outputs:
         None, adds data to db
     '''
-    for local_id, accession in accession_ids.items():
-        query = text("""
+    query = text("""
             UPDATE testdirectory.inca
             SET accession_id = :accession
             WHERE local_id = :local_id
         """)
-        engine.execute(
-            query, {"accession": accession, "local_id": local_id}
-        )
+    payload = [{"accession": acc, "local_id": local_id} for local_id, acc in accession_ids.items()]
+    with engine.begin() as conn:
+        conn.execute(query, payload)
 
 
 def add_clinvar_submission_error_to_db(errors, engine):
@@ -202,13 +202,14 @@ def add_clinvar_submission_error_to_db(errors, engine):
     Outputs:
         None, adds data to db
     '''
-    with engine.connect() as conn:
-        # Iterate through errors and update each local_id with its error
-        for local_id, error in errors.items():
-            query = text("""
+    query = text("""
                 UPDATE testdirectory.inca
                 SET clinvar_status = :error
                 WHERE local_id = :local_id
             """)
-            conn.execute(query, {"error": error, "local_id": local_id})
+    payload = [{"error": err, "local_id": lid} for lid, err in errors.items()]
+
+    with engine.begin() as conn:
+        # Batch submission which updates each local_id with its error
+        conn.execute(query, payload)
 
