@@ -191,7 +191,8 @@ def main():
                 )
                 workbook = load_workbook(filename)
                 if file not in failed_list:
-                    db.add_wb_to_db(file, None, engine) # Was NULL
+                    db.add_wb_to_db(file, None, engine)
+                    # Was "NULL" but None in SQLAlchemy becomes NULL in SQL
 
                 # Get a df of data from each sheet in workbook:
                 df = utils.get_workbook_data(
