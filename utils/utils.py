@@ -47,6 +47,13 @@ def get_workbook_data(workbook, config, filename, file, engine, organisation):
     df_interpret, error = get_report_fields(workbook, config, df_included)
     errors.append(error)
 
+    # Check if df_summary is None due to error in get_summary_fields
+    if df_summary is None:
+        errors_to_add = [err for err in errors if err is not None]
+        error_to_add = ", ".join(errors_to_add)
+        add_error_to_db(engine, file, error_to_add)
+        return None
+
     # merge these to get one df
     if not df_included.empty and not df_summary.empty:
         df_merged = pd.merge(df_included, df_summary, how="cross")
