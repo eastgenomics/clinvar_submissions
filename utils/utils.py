@@ -9,6 +9,7 @@ import requests
 import json
 import uuid
 import time
+from typing import Optional
 
 
 def get_folder_of_input_file(filename: str) -> str:
@@ -23,7 +24,14 @@ def get_folder_of_input_file(filename: str) -> str:
     return folder
 
 
-def get_workbook_data(workbook, config, filename, file, engine, organisation):
+def get_workbook_data(
+    workbook,
+    config: dict,
+    filename: str,
+    file: str,
+    engine,
+    organisation: str
+    ) -> pd.DataFrame:
     '''
     Function that runs functions to extract data from each sheet in the
     workbook and merges it together into one dataframe
@@ -84,7 +92,9 @@ def get_workbook_data(workbook, config, filename, file, engine, organisation):
     return df_final
 
 
-def get_summary_fields(workbook, config, organisation):
+def get_summary_fields(
+    workbook, config: dict, organisation
+    ) -> tuple[pd.DataFrame, str]:
     '''
     Extract data from summary sheet of variant workbook
     Inputs:
@@ -185,7 +195,7 @@ def get_summary_fields(workbook, config, organisation):
     return df_summary, error_msg
 
 
-def get_included_fields(workbook, filename) -> pd.DataFrame:
+def get_included_fields(workbook, filename: str) -> pd.DataFrame:
     '''
     Extract data from included sheet of variant workbook
     Inputs:
@@ -239,7 +249,11 @@ def get_included_fields(workbook, filename) -> pd.DataFrame:
     return df
 
 
-def get_report_fields(workbook, config, df_included):
+def get_report_fields(
+    workbook,
+    config: dict,
+    df_included: pd.DataFrame
+    ) -> tuple[pd.DataFrame, str]:
     '''
     Extract data from interpret sheet(s) of variant workbook
     Inputs:
@@ -280,7 +294,7 @@ def get_report_fields(workbook, config, df_included):
     return df_report, error_msg
 
 
-def make_acgs_criteria_null_if_not_applied(df, acgs_criteria):
+def make_acgs_criteria_null_if_not_applied(df, acgs_criteria: list) -> pd.DataFrame:
     '''
     The workbook has a value "NA" for ACGS criteria that was not applied. This
     function finds any variant row that had "NA" for a criteria and changes it
@@ -310,7 +324,7 @@ def make_acgs_criteria_null_if_not_applied(df, acgs_criteria):
     return df
 
 
-def add_comment_on_classification(df, acgs_criteria, config):
+def add_comment_on_classification(df, acgs_criteria: list, config: dict) -> pd.DataFrame:
     '''
     This function should take in a df with a column for each ACGS criteria with
     the values in that column being the strength of the criteria and return the
@@ -355,7 +369,7 @@ def add_comment_on_classification(df, acgs_criteria, config):
     return df
 
 
-def select_api_url(clinvar_testing, config):
+def select_api_url(clinvar_testing: bool, config: dict) -> Optional[str]:
     '''
     Select which API URL to use depending on if this is a test run or if
     variants are planned to be submitted to ClinVar
@@ -383,7 +397,10 @@ def select_api_url(clinvar_testing, config):
     return api_url
 
 
-def check_interpret_table(df_interpret, df_included, config):
+def check_interpret_table(
+    df_interpret: pd.DataFrame,
+    df_included: pd.DataFrame,
+    config: dict) -> Optional[str]:
     '''
     Check if ACMG classification and HGVSc are correctly
     filled in in the interpret table(s)
@@ -394,7 +411,7 @@ def check_interpret_table(df_interpret, df_included, config):
     Outputs:
       error_msg (str): error message
     '''
-    error_msg = []
+    error_msg_list = []
     strength_dropdown = config.get("strength_dropdown")
     BA1_dropdown = config.get("BA1_dropdown")
     for row in range(df_interpret.shape[0]):
@@ -429,9 +446,9 @@ def check_interpret_table(df_interpret, df_included, config):
                 ), "Wrong strength in BA1"
 
         except AssertionError as msg:
-            error_msg.append(str(msg))
+            error_msg_list.append(str(msg))
 
-    error_msg = "".join(error_msg)
+    error_msg = "".join(error_msg_list)
 
     if error_msg == "":
         error_msg = None
@@ -439,7 +456,7 @@ def check_interpret_table(df_interpret, df_included, config):
     return error_msg
 
 
-def checking_sheets(workbook):
+def checking_sheets(workbook) -> Optional[str]:
     '''
     Check if extra row(s)/col(s) are added in the sheets
     Inputs:
@@ -474,37 +491,37 @@ def checking_sheets(workbook):
     return error_msg
 
 
-def check_interpreted_col(df):
+def check_interpreted_col(df) -> Optional[str]:
     '''
     Check if interpreted col in included sheet is correctly filled in
     Inputs:
         df (pd.DataFrame): merged dataframe with data from workbook
         error_msg (str): error message
     '''
-    error_msg = []
+    error_msg_list = []
     yes_df = df[df["interpreted"] == "yes"]
     no_df = df[df["interpreted"] == "no"]
 
     if not df["interpreted"].isin(['yes', 'no']).all():
-        error_msg.append(
+        error_msg_list.append(
             "Values in interpreted column are not all either 'yes' or 'no'"
         )
 
     for index, row in yes_df.iterrows():
         if pd.isna(row["germline_classification"]):
-            error_msg.append(
+            error_msg_list.append(
                 f"Variant {row['hgvsc']} has interpreted = yes, but no final "
                 "classification could be extracted from interpret sheets."
             )
 
     for index, row in no_df.iterrows():
         if pd.notna(row["germline_classification"]):
-            error_msg.append(
+            error_msg_list.append(
                 f"Variant {row['hgvsc']} has interpreted = no, but a final "
                 "classification could be extracted from interpret sheets."
             )
 
-    error_msg = " ".join(error_msg)
+    error_msg = " ".join(error_msg_list)
 
     if error_msg == "":
         error_msg = None
@@ -512,7 +529,13 @@ def check_interpreted_col(df):
     return error_msg
 
 
-def check_sample_name(instrumentID, sample_ID, batchID, testcode, probesetID):
+def check_sample_name(
+    instrumentID: str,
+    sample_ID: str,
+    batchID: str,
+    testcode: str,
+    probesetID: str
+    ) -> Optional[str]:
     '''
     Checking that individual parts of sample name have expected naming format
     Inputs:
@@ -539,16 +562,21 @@ def check_sample_name(instrumentID, sample_ID, batchID, testcode, probesetID):
     return error_msg
 
 
-def submission_status_check(submission_id, headers, api_url):
+def submission_status_check(
+    submission_id: str,
+    headers: dict,
+    api_url: str
+    ) -> tuple[str, dict]:
     '''
     Queries ClinVar API about a submission ID to obtain more details about its
     submission record.
     Inputs:
-        submission_id:  the generated submission id from ClinVar when a
+        submission_id (str):  the generated submission id from ClinVar when a
         submission has been posted to their API
-        headers: the required API url
+        headers (dict): the required API url
     Outputs:
-        status_response: the API response
+        status (str): the submission status
+        status_response (dict): the API response
     '''
 
     url = os.path.join(api_url, submission_id, "actions")

@@ -3,15 +3,16 @@ import requests
 import json
 from requests.adapters import HTTPAdapter, Retry
 from utils.database_actions import add_clinvar_submission_error_to_db
+from typing import List, Dict, Any, Tuple, Optional
 
-def extract_clinvar_information(variant_row, ref_genomes):
+def extract_clinvar_information(variant_row, ref_genomes: list) -> dict:
     '''
     Extract information from Shire variant record and reformat into dictionary
     Inputs:
         variant: row from variant dataframe with data for one variant
         ref_genomes (list): list of valid reference genome values from config
     outputs:
-        clinvar_dict: dictionary of data to submit to clinvar
+        clinvar_dict (dict): dictionary of data to submit to clinvar
     '''
     if variant_row["ref_genome"] not in ref_genomes:
         raise ValueError("Invalid genome build")
@@ -74,7 +75,7 @@ def collect_clinvar_data_to_submit(clinvar_df, ref_genomes):
     return variants
 
 
-def create_header(api_key):
+def create_header(api_key: str) -> Dict[str, str]:
     '''
     Format header for ClinVar API submission
     Inputs:
@@ -89,7 +90,14 @@ def create_header(api_key):
     return header
 
 
-def clinvar_api_request(url, header, var_list, org_guidelines_url, print_json, no_retry_option=False):
+def clinvar_api_request(
+    url: str,
+    header: Dict[str, str],
+    var_list: List[Dict[str, Any]],
+    org_guidelines_url: str,
+    print_json: bool,
+    no_retry_option: bool = False
+) -> requests.Response:
     '''
     Make request to the ClinVar API endpoint specified.
     Inputs:
@@ -137,7 +145,7 @@ def clinvar_api_request(url, header, var_list, org_guidelines_url, print_json, n
     return response
 
 
-def process_submission_status(status, response):
+def process_submission_status(status: str, response: dict) -> Tuple[dict, dict]:
     '''
     Process response to API query about submission status.
     Inputs:
