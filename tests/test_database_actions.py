@@ -5,6 +5,7 @@ from unittest.mock import call
 from freezegun import freeze_time
 import utils.database_actions as db
 import pandas as pd
+from itertools import chain
 
 
 class TestDatabaseEngine(unittest.TestCase):
@@ -24,7 +25,7 @@ class TestDatabaseEngine(unittest.TestCase):
         # Prepare mock engine and connection
         mock_engine = mock.MagicMock()
         mock_conn = mock.MagicMock()
-        mock_engine.connect.return_value.__enter__.return_value = mock_conn
+        mock_engine.begin.return_value.__enter__.return_value = mock_conn
 
         expected_call = call(
             ANY, {"wb": "test_workbook.xlsx", "date": mock.ANY, "status": "FAIL"}
@@ -41,7 +42,7 @@ class TestDatabaseEngine(unittest.TestCase):
         # Prepare mock engine and connection
         mock_engine = mock.MagicMock()
         mock_conn = mock.MagicMock()
-        mock_engine.connect.return_value.__enter__.return_value = mock_conn
+        mock_engine.begin.return_value.__enter__.return_value = mock_conn
 
         db.update_db_for_parsed_wb("test_workbook.xlsx", mock_engine)
 
@@ -67,29 +68,35 @@ class TestDatabaseEngine(unittest.TestCase):
 
     def test_add_submission_id_to_db_if_submission_id_returned(self):
         mock_engine = mock.MagicMock()
+        mock_conn = mock.MagicMock()
+        # Patch engine.begin().__enter__() to return mock_conn
+        mock_engine.begin.return_value.__enter__.return_value = mock_conn
         response = {"id": "SUB123456"}
         expected_sql = (
             "UPDATE testdirectory.inca SET submission_id = 'SUB123456' "
             "WHERE local_id in ('uid_12345', 'uid_67890')"
         )
         db.add_submission_id_to_db(response, mock_engine, self.variants)
-        mock_engine.execute.assert_called_once_with(expected_sql)
+        mock_conn.execute.assert_called_once_with(expected_sql)
 
     def test_add_submission_id_to_db_if_error_returned(self):
         mock_engine = mock.MagicMock()
+        mock_conn = mock.MagicMock()
+        # Patch engine.begin().__enter__() to return mock_conn
+        mock_engine.begin.return_value.__enter__.return_value = mock_conn
         response = {"message": "No valid API key provided"}
         expected_sql = (
             "UPDATE testdirectory.inca SET clinvar_status = 'ERROR: No valid "
             "API key provided' WHERE local_id in ('uid_12345', 'uid_67890')"
         )
         db.add_submission_id_to_db(response, mock_engine, self.variants)
-        mock_engine.execute.assert_called_once_with(expected_sql)
+        mock_conn.execute.assert_called_once_with(expected_sql)
 
     def test_add_error_to_db(self):
         # Prepare mock engine and connection
         mock_engine = mock.MagicMock()
         mock_conn = mock.MagicMock()
-        mock_engine.connect.return_value.__enter__.return_value = mock_conn
+        mock_engine.begin.return_value.__enter__.return_value = mock_conn
 
         db.add_error_to_db(mock_engine, "test_workbook.xlsx", "Parsing error")
 
@@ -116,36 +123,31 @@ class TestDatabaseEngine(unittest.TestCase):
 
     def test_add_accession_ids_to_db(self):
         mock_engine = mock.MagicMock()
+        mock_conn = mock.MagicMock()
+        mock_engine.begin.return_value.__enter__.return_value = mock_conn
         accession_ids = {"uid_12345": "SCV000012345", "uid_67890": "SCV000067890"}
 
         db.add_accession_ids_to_db(accession_ids, mock_engine)
 
-        # Check that execute was called twice
-        self.assertEqual(mock_engine.execute.call_count, 2)
+        # Should be called once (batch)
+        self.assertEqual(mock_conn.execute.call_count, 1)
 
-        # Check the parameters of each call
-        calls = mock_engine.execute.call_args_list
-
-        # Extract the parameters from each call
-        call_params = [
-            call[0][1] for call in calls
-        ]  # Get the second argument (params dict)
-
-        expected_params = [
+        # Get the parameters passed to execute
+        params = mock_conn.execute.call_args[0][1]
+        expected = [
             {"accession": "SCV000012345", "local_id": "uid_12345"},
             {"accession": "SCV000067890", "local_id": "uid_67890"},
         ]
-
-        # Check that both sets of parameters were used
-        for expected in expected_params:
-            self.assertIn(expected, call_params)
+        # assert that params is a list of dicts with expected content
+        assert len(params) == len(expected)
+        assert all(param in params for param in expected)
 
     @mock.patch("utils.database_actions.text")
     def test_add_clinvar_submission_error_to_db(self, mock_text):
         # Prepare mock engine and connection
         mock_engine = mock.MagicMock()
         mock_conn = mock.MagicMock()
-        mock_engine.connect.return_value.__enter__.return_value = mock_conn
+        mock_engine.begin.return_value.__enter__.return_value = mock_conn
 
         errors = {
             "uid_12345": "This record is submitted as novel but it should be submitted as an update",
@@ -155,19 +157,12 @@ class TestDatabaseEngine(unittest.TestCase):
         # Call the function
         db.add_clinvar_submission_error_to_db(errors, mock_engine)
 
-        # Check that execute was called for each error
-        expected_calls = [
-            call(
-                mock_text.return_value,
-                {"error": errors["uid_12345"], "local_id": "uid_12345"},
-            ),
-            call(
-                mock_text.return_value,
-                {"error": errors["uid_67890"], "local_id": "uid_67890"},
-            ),
+        # Check that execute was called once with a list of error dicts
+        expected_params = [
+            {"error": errors["uid_12345"], "local_id": "uid_12345"},
+            {"error": errors["uid_67890"], "local_id": "uid_67890"},
         ]
-        assert mock_conn.execute.call_count == 2
-        mock_conn.execute.assert_has_calls(expected_calls, any_order=True)
+        mock_conn.execute.assert_called_once_with(mock_text.return_value, expected_params)
 
 
 class TestDatabasePandas(unittest.TestCase):
@@ -200,9 +195,11 @@ class TestDatabasePandas(unittest.TestCase):
     @mock.patch("pandas.DataFrame.to_sql")
     def test_add_variants_to_db(self, pd_to_sql_mock):
         mock_engine = mock.MagicMock()
+        mock_conn = mock.MagicMock()
+        mock_engine.begin.return_value.__enter__.return_value = mock_conn
         db.add_variants_to_db(self.df, mock_engine)
         pd_to_sql_mock.assert_called_once_with(
-            "inca", mock_engine, if_exists="append", schema="testdirectory", index=False
+            "inca", mock_conn, if_exists="append", schema="testdirectory", index=False
         )
 
     @mock.patch("pandas.read_sql")
