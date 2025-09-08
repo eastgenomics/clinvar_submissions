@@ -116,7 +116,7 @@ def select_variants_from_db(organisation_id, engine, submitted, exclude=""):
         df (pandas.DataFrame): dataframe of records in table that meet the
         given filter
     '''
-    # santise organisation_id to ensure it is a string
+    # sanitise organisation_id to ensure it is a string
     if not isinstance(organisation_id, str):
         organisation_id = str(organisation_id)
 
