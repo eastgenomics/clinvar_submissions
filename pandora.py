@@ -163,12 +163,14 @@ def main():
     # Get config values
     if args.path_to_workbooks:
         print(f"Searching {args.path_to_workbooks}...")
-        filenames = glob.glob(args.path_to_workbooks + "*.xlsx")
+        filenames = glob.glob(
+            os.path.join(args.path_to_workbooks, "*.xlsx")
+        )
         # remove any CNV workbooks
         workbooks_to_process = [f for f in filenames if not re.search(r'CNV', f, re.IGNORECASE)]
         if not filenames:
             print("No workbooks found in the specified path.")
-            SystemExit(1)
+            raise SystemExit(1)
         print(f"Found {len(workbooks_to_process)} workbooks")
 
     elif args.samples_file:
@@ -199,8 +201,8 @@ def main():
             )
             workbook = load_workbook(filename)
             if file not in failed_list:
-                db.add_wb_to_db(file, None, engine)
                 # Was "NULL" but None in SQLAlchemy becomes NULL in SQL
+                db.add_wb_to_db(file, None, engine)
             # Get a df of data from each sheet in workbook:
             df = utils.get_workbook_data(
                 workbook,
@@ -229,7 +231,7 @@ def main():
 
     else:
         print("no path_to_workbooks to specified. Nothing to parse")
-        SystemExit(1)
+        raise SystemExit(1)
 
     # Select all variants that have interpreted = yes and are not submitted
     # Also exclude any variants meeting exclusion criteria set in the config
