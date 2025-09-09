@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 from unittest.mock import MagicMock, patch
 from utils import utils
-from datetime import date
 import openpyxl
 
 # --- 40-78: get_workbook_data ---

@@ -18,17 +18,19 @@ with open(TEST_DATA_DIR + '/test_config.json') as f:
     config = json.load(f)
 
 
-for wb in nuh_workbooks + cuh_workbooks:
-    filename = os.path.basename(wb).strip(".xlsx")
-    locals()[filename] = wb
-
-
-
 class TestParsing(unittest.TestCase):
-    cuh_workbook = load_workbook(cuh)
-    nuh_workbook = load_workbook(nuh)
-    df_included = utils.get_included_fields(cuh_workbook, cuh)
-    df_report, msg = utils.get_report_fields(cuh_workbook, config, df_included)
+    @classmethod
+    def setUpClass(cls):
+        cls.workbook_paths = {}
+        for wb in nuh_workbooks + cuh_workbooks:
+            filename = os.path.basename(wb).removesuffix(".xlsx")
+            cls.workbook_paths[filename] = wb
+
+        # Load 2 example cuh/nuh workbooks and dataframes for use in tests
+        cls.cuh_workbook = load_workbook(cls.workbook_paths["cuh"])
+        cls.nuh_workbook = load_workbook(cls.workbook_paths["nuh"])
+        cls.cuh_df_included = utils.get_included_fields(cls.cuh_workbook, cls.workbook_paths["cuh"])
+        cls.cuh_df_report, cls.cuh_msg = utils.get_report_fields(cls.cuh_workbook, config, cls.cuh_df_included)
 
     def test_get_folder(self):
         """
@@ -36,12 +38,12 @@ class TestParsing(unittest.TestCase):
         where the workbook exists
         """
         with self.subTest("NUH folder correct"):
-            NUH_folder = utils.get_folder_of_input_file(nuh)
+            NUH_folder = utils.get_folder_of_input_file(self.workbook_paths["nuh"])
             assert NUH_folder == "NUH"
 
         with self.subTest("CUH folder correct"):
-            NUH_folder = utils.get_folder_of_input_file(cuh)
-            assert NUH_folder == "CUH"
+            CUH_folder = utils.get_folder_of_input_file(self.workbook_paths["cuh"])
+            assert CUH_folder == "CUH"
 
     def test_get_included_fields(self):
         """
@@ -52,7 +54,7 @@ class TestParsing(unittest.TestCase):
         in lowercase (no,yes in test case)
         Test contents of df and see if they are as expected
         """
-        df = self.df_included
+        df = self.cuh_df_included
 
         with self.subTest("df has two variants, so two rows"):
             assert df.shape[0] == 2
@@ -115,7 +117,7 @@ class TestParsing(unittest.TestCase):
         and evidence columns (some are expected to be np.nan)
         Test there is no error message
         """
-        df = self.df_report
+        df = self.cuh_df_report
 
         with self.subTest("df has one reported variants, so one row"):
             assert df.shape[0] == 1
@@ -236,16 +238,16 @@ class TestParsing(unittest.TestCase):
 
     def test_check_interpret_table_returns_no_error_if_hgvsc_matches(self):
         error_msg = utils.check_interpret_table(
-            self.df_report,
-            self.df_included,
+            self.cuh_df_report,
+            self.cuh_df_included,
             config
         )
         assert error_msg is None
 
     def test_check_interpret_table_error_if_hgvsc_wrong(self):
-        wrong_hgvsc_workbook = load_workbook(cuh_wrong_hgvsc)
+        wrong_hgvsc_workbook = load_workbook(self.workbook_paths["cuh_wrong_hgvsc"])
         df_include = utils.get_included_fields(
-            wrong_hgvsc_workbook, cuh_wrong_hgvsc
+            wrong_hgvsc_workbook, self.workbook_paths["cuh_wrong_hgvsc"]
         )
         df_report, msg = utils.get_report_fields(
             wrong_hgvsc_workbook, config, df_include
@@ -261,9 +263,9 @@ class TestParsing(unittest.TestCase):
         )
 
     def test_check_interpret_table_error_if_hgvsc_empty(self):
-        empty_hgvsc_workbook = load_workbook(cuh_empty_hgvsc)
+        empty_hgvsc_workbook = load_workbook(self.workbook_paths["cuh_empty_hgvsc"])
         df_include = utils.get_included_fields(
-            empty_hgvsc_workbook, cuh_empty_hgvsc
+            empty_hgvsc_workbook, self.workbook_paths["cuh_empty_hgvsc"]
         )
         df_report, msg = utils.get_report_fields(
             empty_hgvsc_workbook, config, df_include
@@ -276,9 +278,9 @@ class TestParsing(unittest.TestCase):
         assert error_msg == "empty HGVSc in interpret table"
 
     def test_check_interpret_table_error_if_no_acmg_classification(self):
-        no_acmg_workbook = load_workbook(cuh_empty_acmg)
+        no_acmg_workbook = load_workbook(self.workbook_paths["cuh_empty_acmg"])
         df_include = utils.get_included_fields(
-            no_acmg_workbook, cuh_empty_acmg
+            no_acmg_workbook, self.workbook_paths["cuh_empty_acmg"]
         )
         df_report, msg = utils.get_report_fields(
             no_acmg_workbook, config, df_include
@@ -291,9 +293,9 @@ class TestParsing(unittest.TestCase):
         assert error_msg == "empty ACMG classification in interpret table"
 
     def test_check_interpret_table_error_if_wrong_acmg_classification(self):
-        wrong_acmg_workbook = load_workbook(cuh_wrong_acmg)
+        wrong_acmg_workbook = load_workbook(self.workbook_paths["cuh_wrong_acmg"])
         df_include = utils.get_included_fields(
-            wrong_acmg_workbook, cuh_wrong_acmg
+            wrong_acmg_workbook, self.workbook_paths["cuh_wrong_acmg"]
         )
         df_report, msg = utils.get_report_fields(
             wrong_acmg_workbook, config, df_include
@@ -307,10 +309,10 @@ class TestParsing(unittest.TestCase):
 
     def test_check_interpret_table_error_if_wrong_strength(self):
         wrong_interpret_strength_workbook = load_workbook(
-            nuh_wrong_interpret_strength
+            self.workbook_paths["nuh_wrong_interpret_strength"]
         )
         df_include = utils.get_included_fields(
-            wrong_interpret_strength_workbook, nuh_wrong_interpret_strength
+            wrong_interpret_strength_workbook, self.workbook_paths["nuh_wrong_interpret_strength"]
         )
         df_report, msg = utils.get_report_fields(
             wrong_interpret_strength_workbook, config, df_include
@@ -323,12 +325,12 @@ class TestParsing(unittest.TestCase):
         assert error_msg == "Wrong strength in pm2"
 
     def test_checking_sheet_wrong_summary(self):
-        wrong_summary_workbook = load_workbook(nuh_wrong_summary)
+        wrong_summary_workbook = load_workbook(self.workbook_paths["nuh_wrong_summary"])
         msg = utils.checking_sheets(wrong_summary_workbook)
         assert msg == "extra col(s) added or change(s) done in summary sheet"
 
     def test_checking_sheet_wrong_interpret_row(self):
-        wrong_interpret_row = load_workbook(nuh_wrong_interpret_row)
+        wrong_interpret_row = load_workbook(self.workbook_paths["nuh_wrong_interpret_row"])
         msg = utils.checking_sheets(wrong_interpret_row)
         assert msg == (
             "extra row(s) or col(s) added or change(s) done in interpret sheet"
@@ -375,6 +377,7 @@ class TestParsing(unittest.TestCase):
         Expect the time to change to 00:00 as we are only using date not time.
         This test uses an example workbook with nothing in the date cell
         '''
+        nuh_no_evaluated_date = self.workbook_paths["nuh_no_evaluated_date"]
         no_evaluated_date_workbook = load_workbook(nuh_no_evaluated_date)
         df, msg = utils.get_summary_fields(
             no_evaluated_date_workbook, config, nuh_no_evaluated_date
@@ -390,12 +393,12 @@ class TestParsing(unittest.TestCase):
         This test uses an example workbook with "Not valid" in the date cell
         '''
         invalid_evaluation_date_workbook = load_workbook(
-            nuh_invalid_evaluated_date
+            self.workbook_paths["nuh_invalid_evaluated_date"]
         )
         df, msg = utils.get_summary_fields(
             invalid_evaluation_date_workbook,
             config,
-            nuh_invalid_evaluated_date
+            self.workbook_paths["nuh_invalid_evaluated_date"]
         )
         assert msg == (
             "Value for date last evaluated \"Not valid\" is not compatible "
@@ -408,9 +411,9 @@ class TestParsing(unittest.TestCase):
         raised.
         """
         df_summary, _ = utils.get_summary_fields(
-            self.cuh_workbook, config, cuh
+            self.cuh_workbook, config, self.workbook_paths["cuh"]
         )
-        df_merged = pd.merge(self.df_included, df_summary, how="cross")
+        df_merged = pd.merge(self.cuh_df_included, df_summary, how="cross")
         df_final = pd.merge(df_merged, self.df_report, on="hgvsc", how="left")
         msg = utils.check_interpreted_col(df_final)
         assert msg is None
