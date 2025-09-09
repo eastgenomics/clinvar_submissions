@@ -1,9 +1,7 @@
-import pandas as pd
 import requests
 import json
 from requests.adapters import HTTPAdapter, Retry
-from utils.database_actions import add_clinvar_submission_error_to_db
-from typing import List, Dict, Any, Tuple, Optional
+from typing import List, Dict, Any, Tuple
 
 def extract_clinvar_information(variant_row, ref_genomes: list) -> dict:
     '''
@@ -19,7 +17,7 @@ def extract_clinvar_information(variant_row, ref_genomes: list) -> dict:
 
     assembly = variant_row["ref_genome"].split('.')[0]
 
-    clinvar_dict = {
+    clinvar_dict: dict = {
             'clinicalSignificance': {
                 'clinicalSignificanceDescription': variant_row["germline_classification"],
                 'comment': variant_row["comment_on_classification"],
@@ -55,7 +53,7 @@ def extract_clinvar_information(variant_row, ref_genomes: list) -> dict:
     return clinvar_dict
 
 
-def collect_clinvar_data_to_submit(clinvar_df, ref_genomes):
+def collect_clinvar_data_to_submit(clinvar_df, ref_genomes) -> List:
     '''
     Cycle through a dataframe, and extract variants for each row. Call the
     function to reformat this into a dictionary for submission to ClinVar and
