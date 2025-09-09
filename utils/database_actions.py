@@ -49,6 +49,7 @@ def add_wb_to_db(workbook, parse_status, engine):
                  "ON CONFLICT (workbook_name) DO NOTHING"),
             {"wb": workbook, "date": now, "status": parse_status}
         )
+        print(f"Added {result.rowcount} records to inca_workbooks table")
 
 
 def update_db_for_parsed_wb(workbook, engine):
@@ -70,6 +71,7 @@ def update_db_for_parsed_wb(workbook, engine):
                  "WHERE workbook_name = :wb"),
             {"wb": workbook}
         )
+        print(f"Updated {result.rowcount} records in inca_workbooks table")
 
 
 def add_submission_id_to_db(response, engine, variants):

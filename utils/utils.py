@@ -161,7 +161,7 @@ def get_summary_fields(
     # compatible
     # Can test with first item in series as all rows have the same date value
     try:
-        r = bool(date_parser.parse(str(df_summary['date_last_evaluated'][0])))
+        _ = bool(date_parser.parse(str(df_summary['date_last_evaluated'][0])))
     except date_parser._parser.ParserError:
         error_msg = (
             f"Value for date last evaluated \"{date_evaluated}\" is not "
