@@ -17,7 +17,7 @@ import re
 from sqlalchemy import create_engine
 
 
-def open_json(file):
+def open_json(file: str) -> dict:
     '''
     Inputs:
         file (str): path to json file
@@ -29,7 +29,7 @@ def open_json(file):
     return contents
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     '''
     Parse command line arguments
     '''
@@ -158,115 +158,75 @@ def main():
                             errors, engine
                         )
 
-
-    # Get any new workbooks and re-run any failed workbooks in given path
+    # Gather workbooks to process
+    workbooks_to_process = []
+    # Get config values
     if args.path_to_workbooks:
         print(f"Searching {args.path_to_workbooks}...")
         filenames = glob.glob(args.path_to_workbooks + "*.xlsx")
         # remove any CNV workbooks
-        filenames = [f for f in filenames if not re.search(r'CNV', f, re.IGNORECASE)]
+        workbooks_to_process = [f for f in filenames if not re.search(r'CNV', f, re.IGNORECASE)]
         if not filenames:
             print("No workbooks found in the specified path.")
             SystemExit(1)
-        print(f"Found {len(filenames)} workbooks")
+        print(f"Found {len(workbooks_to_process)} workbooks")
 
-        # Get previously parsed workbooks
-        parsed_workbook_df = db.select_workbooks_from_db(
-            engine, "parse_status = TRUE"
-        )
-        parsed_list = parsed_workbook_df['workbook_name'].values
-        failed_parsing_df = db.select_workbooks_from_db(
-            engine, "parse_status = FALSE"
-        )
-        failed_list = failed_parsing_df['workbook_name'].values
-
-        for filename in filenames:
-            print(f"Processing {filename}")
-            # check if wb has not already been processed
-            file = os.path.basename(filename)
-            if file not in parsed_list:
-                print(
-                    f"{file} has not previously been parsed successfully.\n"
-                    f"Parsing {file}..."
-                )
-                workbook = load_workbook(filename)
-                if file not in failed_list:
-                    db.add_wb_to_db(file, None, engine)
-                    # Was "NULL" but None in SQLAlchemy becomes NULL in SQL
-
-                # Get a df of data from each sheet in workbook:
-                df = utils.get_workbook_data(
-                    workbook,
-                    config,
-                    filename,
-                    file,
-                    engine,
-                    args.organisation
-                )
-                if args.dry_run:
-                    print("Parsed data:"
-                          f"\n{df.head()}\n{df.shape[0]} rows in total."
-                    )
-                    df = None
-                elif df is not None:
-                    if not df.empty:
-                        print(f"{df.shape[0]} variants to add to inca table.")
-                        db.add_variants_to_db(df, engine)
-                    db.update_db_for_parsed_wb(file, engine)
-            else:
-                print(f"{file} has already been parsed. Skipping...")
     elif args.samples_file:
         print(f"Reading samples from {args.samples_file}...")
         df = pd.read_csv(f"{args.samples_file}")
-        paths = df[~df['file_name'].str.contains('CNV', case=False, na=False)]['path'].tolist()
-        print(f"Found {len(paths)} workbooks")
+        workbooks_to_process = df[~df['file_name'].str.contains('CNV', case=False, na=False)]['path'].tolist()
+        print(f"Found {len(workbooks_to_process)} workbooks")
 
-        # Get previously parsed workbooks
-        parsed_workbook_df = db.select_workbooks_from_db(
-            engine, "parse_status = TRUE"
-        )
-        parsed_list = parsed_workbook_df['workbook_name'].values
-        failed_parsing_df = db.select_workbooks_from_db(
-            engine, "parse_status = FALSE"
-        )
-        failed_list = failed_parsing_df['workbook_name'].values
+    # Get previously parsed workbooks
+    parsed_workbook_df = db.select_workbooks_from_db(
+        engine, "parse_status = TRUE"
+    )
+    parsed_list = parsed_workbook_df['workbook_name'].values
+    failed_parsing_df = db.select_workbooks_from_db(
+        engine, "parse_status = FALSE"
+    )
+    failed_list = failed_parsing_df['workbook_name'].values
 
-        # Loop through each workbook in the samples file
-        for filename in paths:
-            print(f"Processing {filename}")
-            file = os.path.basename(filename)
-            if file not in parsed_list:
-                print(
-                    f"{file} has not previously been parsed successfully.\n"
-                    f"Parsing {file}..."
+    # Process workbooks
+    for filename in workbooks_to_process:
+        print(f"Processing {filename}")
+        # check if wb has not already been processed
+        file = os.path.basename(filename)
+        if file not in parsed_list:
+            print(
+                f"{file} has not previously been parsed successfully.\n"
+                f"Parsing {file}..."
+            )
+            workbook = load_workbook(filename)
+            if file not in failed_list:
+                db.add_wb_to_db(file, None, engine)
+                # Was "NULL" but None in SQLAlchemy becomes NULL in SQL
+            # Get a df of data from each sheet in workbook:
+            df = utils.get_workbook_data(
+                workbook,
+                config,
+                filename,
+                file,
+                engine,
+                args.organisation
+            )
+            if df is None:
+                print("No data parsed from workbook.")
+                continue
+            # If we reach this point, we have valid data
+            if args.dry_run:
+                print("Parsed data:"
+                      f"\n{df.head()}\n{df.shape[0]} rows in total."
                 )
-                workbook = load_workbook(filename)
-                if file not in failed_list:
-                    db.add_wb_to_db(file, None, engine) # Was NULL
-
-                # Get a df of data from each sheet in workbook:
-                df = utils.get_workbook_data(
-                    workbook,
-                    config,
-                    filename,
-                    file,
-                    engine,
-                    args.organisation
-                )
-                if args.dry_run:
-                    print("Parsed data:"
-                          f"\n{df.head()}\n{df.shape[0]} rows in total."
-                    )
-                    df.to_csv("parsed_data.csv", index=False)
-                    print("Saved parsed data to parsed_data.csv")
-                    df = None
-                elif df is not None:
-                    if not df.empty:
-                        print(f"{df.shape[0]} variants to add to inca table.")
-                        db.add_variants_to_db(df, engine)
-                    db.update_db_for_parsed_wb(file, engine)
+                df = None
             else:
-                print(f"{file} has already been parsed. Skipping...")
+                if not df.empty:
+                    print(f"{df.shape[0]} variants to add to inca table.")
+                    db.add_variants_to_db(df, engine)
+                db.update_db_for_parsed_wb(file, engine)
+        else:
+            print(f"{file} has already been parsed. Skipping...")
+
     else:
         print("no path_to_workbooks to specified. Nothing to parse")
         SystemExit(1)
