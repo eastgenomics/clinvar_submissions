@@ -262,7 +262,7 @@ def get_report_fields(
 
     '''
     field_cells = config.get("field_cells")
-    print(field_cells)
+
     col_name = [i[0] for i in field_cells]
     df_report = pd.DataFrame(columns=col_name)
     report_sheets = [
