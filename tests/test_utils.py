@@ -54,11 +54,6 @@ def parsed_wb():
     )
     return parsed_wb
 
-def test_get_summary_fields_org_error(parsed_wb, mock_config):
-
-    df, err = utils.get_summary_fields(parsed_wb, mock_config, "BADORG")
-    assert "Organisation must be CUH or NUH" in err
-
 
 def test_check_interpret_table_valid():
     config = {

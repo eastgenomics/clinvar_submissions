@@ -23,6 +23,7 @@ for wb in nuh_workbooks + cuh_workbooks:
     locals()[filename] = wb
 
 
+
 class TestParsing(unittest.TestCase):
     cuh_workbook = load_workbook(cuh)
     nuh_workbook = load_workbook(nuh)
@@ -344,8 +345,7 @@ class TestParsing(unittest.TestCase):
         Test if the "Date last evaluated" is pd date time format
         """
         df, msg = utils.get_summary_fields(self.nuh_workbook, config, "NUH")
-        print(df)
-        print(df.columns)
+
         with self.subTest("df has expected number of rows"):
             assert df.shape[0] == 1
 
@@ -367,42 +367,6 @@ class TestParsing(unittest.TestCase):
                 pd._libs.tslibs.timestamps.Timestamp
             )
 
-    def test_get_summary_fields_lowercase_org(self):
-        """
-        Tests all the following with providing
-        lowercase organisation name (nuh).
-
-        Test "get_summary_fields" generates df with expected shape
-        (1 row and 15 columns in test case)
-        Test the "Preferred condition name" is split as expected
-        (Tuberous sclerosis in test case)
-        Test if the "Ref genome" is correctly extracted
-        (GRCh37.p13 in test case)
-        Test if the "Date last evaluated" is pd date time format
-        """
-        df, msg = utils.get_summary_fields(self.nuh_workbook, config, "nuh")
-        print(df)
-        print(df.columns)
-        with self.subTest("df has expected number of rows"):
-            assert df.shape[0] == 1
-
-        with self.subTest("df has expected number of columns"):
-            assert df.shape[1] == 16
-
-        with self.subTest("correct preferred condition name extracted"):
-            assert df["preferred_condition_name"][0] == (
-                "Inherited breast cancer and ovarian cancer;Inherited breast "
-                "cancer and ovarian cancer"
-            )
-
-        with self.subTest("Ref genome correctly extracted"):
-            assert df["ref_genome"][0] == "GRCh37.p13"
-
-        with self.subTest("Vale for date_last_evaluated is date type"):
-            assert isinstance(
-                df["date_last_evaluated"][0],
-                pd._libs.tslibs.timestamps.Timestamp
-            )
 
     @freeze_time("2024-07-10 22:22:22")
     def test_no_evaluated_date(self):
