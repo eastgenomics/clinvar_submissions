@@ -8,8 +8,8 @@ RUN \
     uv pip install --system --only-binary=all -r requirements.txt && \
 
     echo "Delete python cache directories" 1>&2 && \
-    find /usr/local/lib/python3.12 \( -iname '*.c' -o -iname '*.pxd' -o -iname '*.pyd' -o -iname '__pycache__' \) | \
-    xargs rm -rf {} && \
+    find /usr/local/lib/python3.12 \( -iname '*.c' -o -iname '*.pxd' -o -iname '*.pyd' -o -iname '__pycache__' \) -print0 | \
+    xargs -0 -r rm -rf && \
 
     echo "Setting pandora alias" 1>&2 && \
     printf '#!/bin/sh\nexec python3 /app/pandora.py "$@"\n' > /usr/local/bin/pandora && \
