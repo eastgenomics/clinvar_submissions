@@ -172,7 +172,6 @@ def main():
             print("No workbooks found in the specified path.")
             raise SystemExit(1)
         print(f"Found {len(workbooks_to_process)} workbooks")
-
     elif args.samples_file:
         print(f"Reading samples from {args.samples_file}...")
         df = pd.read_csv(f"{args.samples_file}")
@@ -229,9 +228,6 @@ def main():
         else:
             print(f"{file} has already been parsed. Skipping...")
 
-    else:
-        print("no path_to_workbooks to specified. Nothing to parse")
-        raise SystemExit(1)
 
     # Select all variants that have interpreted = yes and are not submitted
     # Also exclude any variants meeting exclusion criteria set in the config
