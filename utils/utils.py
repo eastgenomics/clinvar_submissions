@@ -93,7 +93,7 @@ def get_workbook_data(
 
 
 def get_summary_fields(
-    workbook, config: dict, organisation
+    workbook, config: dict, organisation: str
     ) -> tuple[pd.DataFrame, str]:
     '''
     Extract data from summary sheet of variant workbook
