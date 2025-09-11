@@ -4,17 +4,19 @@ from utils.database_actions import add_error_to_db
 import pandas as pd
 import numpy as np
 import os
+import re
 import requests
 import json
 import uuid
 import time
+from typing import Optional
 
 
 def get_folder_of_input_file(filename: str) -> str:
     '''
     Get the folder of input file
     Inputs:
-        filename (str): filename 
+        filename (str): filename
     Outputs:
         folder (str): folder name
     '''
@@ -22,29 +24,46 @@ def get_folder_of_input_file(filename: str) -> str:
     return folder
 
 
-def get_workbook_data(workbook, config, filename, file, engine):
+def get_workbook_data(
+    workbook,
+    config: dict,
+    filename: str,
+    file: str,
+    engine,
+    organisation: str
+    ) -> pd.DataFrame:
     '''
     Function that runs functions to extract data from each sheet in the
     workbook and merges it together into one dataframe
-    Inputs
+    Inputs:
         workbook (openpyxl wb object): workbook being used
         config (dict): config variable
         filename (str): string of workbook name with preceding path
         file (str): string of workbook name without preceding path
         engine (SQLAlchemy engine): connection to database
-    Outputs
+        organisation (str): string of organisation name, either CUH or NUH
+    Outputs:
         df_final (pd.DataFrame): data frame extracted from workbook
     '''
     errors = []
     # get data from summary sheet, included variants sheet and interpret sheets
-    df_summary, error = get_summary_fields(workbook, config, filename)
+    df_summary, error = get_summary_fields(
+        workbook, config, organisation
+        )
     errors.append(error)
     df_included = get_included_fields(workbook, filename)
     df_interpret, error = get_report_fields(workbook, config, df_included)
     errors.append(error)
 
+    # Check if df_summary is None due to error in get_summary_fields
+    if df_summary is None:
+        errors_to_add = [err for err in errors if err is not None]
+        error_to_add = ", ".join(errors_to_add)
+        add_error_to_db(engine, file, error_to_add)
+        return None
+
     # merge these to get one df
-    if not df_included.empty:
+    if not df_included.empty and not df_summary.empty:
         df_merged = pd.merge(df_included, df_summary, how="cross")
     else:
         df_merged = pd.concat([df_summary, df_included], axis=1)
@@ -73,14 +92,16 @@ def get_workbook_data(workbook, config, filename, file, engine):
     return df_final
 
 
-def get_summary_fields(workbook, config, filename):
+def get_summary_fields(
+    workbook, config: dict, organisation: str
+    ) -> tuple[pd.DataFrame, str]:
     '''
     Extract data from summary sheet of variant workbook
-    Inputs
+    Inputs:
         workbook (openpyxl wb object): workbook being used
         config (dict): config variable
-        filename (str): string of workbook name
-    Outputs
+        organisation (str): string of organisation name, either CUH or NUH
+    Outputs:
         df_summary (pd.DataFrame): data frame extracted from workbook summary
         sheet
         err_msg (str): error message
@@ -140,7 +161,7 @@ def get_summary_fields(workbook, config, filename):
     # compatible
     # Can test with first item in series as all rows have the same date value
     try:
-        r = bool(date_parser.parse(str(df_summary['date_last_evaluated'][0])))
+        _ = bool(date_parser.parse(str(df_summary['date_last_evaluated'][0])))
     except date_parser._parser.ParserError:
         error_msg = (
             f"Value for date last evaluated \"{date_evaluated}\" is not "
@@ -156,30 +177,27 @@ def get_summary_fields(workbook, config, filename):
     df_summary["allele_origin"] = config.get("Allele origin")
     df_summary["affected_status"] = config.get("Affected status")
 
-    # getting the folder name of workbook
-    # the folder name should return designated folder for either CUH or NUH
-    folder_name = get_folder_of_input_file(filename)
-    if folder_name == config.get("CUH folder"):
+    # Set organisation and organisation_id based on laboratory
+    if organisation == "CUH":
         df_summary["organisation"] = config.get("CUH Organisation")
         df_summary["organisation_id"] = config.get("CUH org ID")
 
-    elif folder_name == config.get("NUH folder"):
+    elif organisation == "NUH":
         df_summary["organisation"] = config.get("NUH Organisation")
         df_summary["organisation_id"] = config.get("NUH org ID")
-
     else:
         error_msg = "Workbook folder is not CUH or NUH folder given in config"
 
     return df_summary, error_msg
 
 
-def get_included_fields(workbook, filename) -> pd.DataFrame:
+def get_included_fields(workbook, filename: str) -> pd.DataFrame:
     '''
     Extract data from included sheet of variant workbook
     Inputs:
         workbook (openpyxl wb object): workbook being used
         filename (str): string of workbook name
-    Outputs
+    Outputs:
         df_included (pd.DataFrame): data frame extracted from included sheet
     '''
     num_variants = workbook["summary"]["C38"].value
@@ -227,19 +245,24 @@ def get_included_fields(workbook, filename) -> pd.DataFrame:
     return df
 
 
-def get_report_fields(workbook, config, df_included):
+def get_report_fields(
+    workbook,
+    config: dict,
+    df_included: pd.DataFrame
+    ) -> tuple[pd.DataFrame, str]:
     '''
     Extract data from interpret sheet(s) of variant workbook
     Inputs:
         workbook (openpyxl wb object): workbook being used
         config (dict): config variable
         df_included (pd.DataFrame): data frame extracted from included sheet
-    Outputs
+    Outputs:
         df_included (pd.DataFrame): dataframe extracted from interpret sheet(s)
         err_msg (str): error message
 
     '''
     field_cells = config.get("field_cells")
+
     col_name = [i[0] for i in field_cells]
     df_report = pd.DataFrame(columns=col_name)
     report_sheets = [
@@ -267,7 +290,7 @@ def get_report_fields(workbook, config, df_included):
     return df_report, error_msg
 
 
-def make_acgs_criteria_null_if_not_applied(df, acgs_criteria):
+def make_acgs_criteria_null_if_not_applied(df, acgs_criteria: list) -> pd.DataFrame:
     '''
     The workbook has a value "NA" for ACGS criteria that was not applied. This
     function finds any variant row that had "NA" for a criteria and changes it
@@ -297,7 +320,7 @@ def make_acgs_criteria_null_if_not_applied(df, acgs_criteria):
     return df
 
 
-def add_comment_on_classification(df, acgs_criteria, config):
+def add_comment_on_classification(df, acgs_criteria: list, config: dict) -> pd.DataFrame:
     '''
     This function should take in a df with a column for each ACGS criteria with
     the values in that column being the strength of the criteria and return the
@@ -342,14 +365,14 @@ def add_comment_on_classification(df, acgs_criteria, config):
     return df
 
 
-def select_api_url(clinvar_testing, config):
+def select_api_url(clinvar_testing: bool, config: dict) -> Optional[str]:
     '''
     Select which API URL to use depending on if this is a test run or if
     variants are planned to be submitted to ClinVar
-    Inputs
+    Inputs:
         clinvar_testing (bool): if True, use test API. If false, use live API
         config (dict): config variable containing URLS for API
-    Outputs
+    Outputs:
         api_url: clinvar api URL, either for the test API or the live API
     '''
     if clinvar_testing is True:
@@ -370,18 +393,21 @@ def select_api_url(clinvar_testing, config):
     return api_url
 
 
-def check_interpret_table(df_interpret, df_included, config):
+def check_interpret_table(
+    df_interpret: pd.DataFrame,
+    df_included: pd.DataFrame,
+    config: dict) -> Optional[str]:
     '''
     Check if ACMG classification and HGVSc are correctly
     filled in in the interpret table(s)
-    Inputs
+    Inputs:
         df_interpret (pd.Dataframe): df from interpret sheet(s)
         df_included (pd.Dataframe): df from included sheet
         config (dict): config variable
-    Outputs
+    Outputs:
       error_msg (str): error message
     '''
-    error_msg = []
+    error_msg_list = []
     strength_dropdown = config.get("strength_dropdown")
     BA1_dropdown = config.get("BA1_dropdown")
     for row in range(df_interpret.shape[0]):
@@ -416,9 +442,9 @@ def check_interpret_table(df_interpret, df_included, config):
                 ), "Wrong strength in BA1"
 
         except AssertionError as msg:
-            error_msg.append(str(msg))
+            error_msg_list.append(str(msg))
 
-    error_msg = "".join(error_msg)
+    error_msg = "".join(error_msg_list)
 
     if error_msg == "":
         error_msg = None
@@ -426,12 +452,12 @@ def check_interpret_table(df_interpret, df_included, config):
     return error_msg
 
 
-def checking_sheets(workbook):
+def checking_sheets(workbook) -> Optional[str]:
     '''
     Check if extra row(s)/col(s) are added in the sheets
-    Inputs
+    Inputs:
         workbook (openpyxl wb object): object of query workbook with variants
-    Outputs
+    Outputs:
         error_msg (str): error message
     '''
     summary = workbook["summary"]
@@ -461,37 +487,37 @@ def checking_sheets(workbook):
     return error_msg
 
 
-def check_interpreted_col(df):
+def check_interpreted_col(df) -> Optional[str]:
     '''
     Check if interpreted col in included sheet is correctly filled in
-    Inputs
+    Inputs:
         df (pd.DataFrame): merged dataframe with data from workbook
         error_msg (str): error message
     '''
-    error_msg = []
+    error_msg_list = []
     yes_df = df[df["interpreted"] == "yes"]
     no_df = df[df["interpreted"] == "no"]
 
     if not df["interpreted"].isin(['yes', 'no']).all():
-        error_msg.append(
+        error_msg_list.append(
             "Values in interpreted column are not all either 'yes' or 'no'"
         )
 
     for index, row in yes_df.iterrows():
         if pd.isna(row["germline_classification"]):
-            error_msg.append(
+            error_msg_list.append(
                 f"Variant {row['hgvsc']} has interpreted = yes, but no final "
                 "classification could be extracted from interpret sheets."
             )
 
     for index, row in no_df.iterrows():
         if pd.notna(row["germline_classification"]):
-            error_msg.append(
+            error_msg_list.append(
                 f"Variant {row['hgvsc']} has interpreted = no, but a final "
                 "classification could be extracted from interpret sheets."
             )
 
-    error_msg = " ".join(error_msg)
+    error_msg = " ".join(error_msg_list)
 
     if error_msg == "":
         error_msg = None
@@ -499,13 +525,19 @@ def check_interpreted_col(df):
     return error_msg
 
 
-def check_sample_name(instrumentID, sample_ID, batchID, testcode, probesetID):
+def check_sample_name(
+    instrumentID: str,
+    sample_ID: str,
+    batchID: str,
+    testcode: str,
+    probesetID: str
+    ) -> Optional[str]:
     '''
     Checking that individual parts of sample name have expected naming format
-    Inputs
+    Inputs:
       str values for instrumentID, sample_ID, batchID, testcode,
       probesetID
-    Outputs
+    Outputs:
         error_msg (str): error message
     '''
     try:
@@ -526,16 +558,21 @@ def check_sample_name(instrumentID, sample_ID, batchID, testcode, probesetID):
     return error_msg
 
 
-def submission_status_check(submission_id, headers, api_url):
+def submission_status_check(
+    submission_id: str,
+    headers: dict,
+    api_url: str
+    ) -> tuple[str, dict]:
     '''
     Queries ClinVar API about a submission ID to obtain more details about its
     submission record.
     Inputs:
-        submission_id:  the generated submission id from ClinVar when a
+        submission_id (str):  the generated submission id from ClinVar when a
         submission has been posted to their API
-        headers: the required API url
+        headers (dict): the required API url
     Outputs:
-        status_response: the API response
+        status (str): the submission status
+        status_response (dict): the API response
     '''
 
     url = os.path.join(api_url, submission_id, "actions")

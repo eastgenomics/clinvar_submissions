@@ -12,14 +12,16 @@ import utils.clinvar as clinvar
 import utils.database_actions as db
 import warnings
 from openpyxl import load_workbook
+import pandas as pd
+import re
 from sqlalchemy import create_engine
 
 
-def open_json(file):
+def open_json(file: str) -> dict:
     '''
-    Inputs
+    Inputs:
         file (str): path to json file
-    Outputs
+    Outputs:
         contents (dict): the contents of that JSON as a dict
     '''
     with open(file) as f:
@@ -27,7 +29,7 @@ def open_json(file):
     return contents
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     '''
     Parse command line arguments
     '''
@@ -58,13 +60,32 @@ def parse_args():
         '--db_credentials', required=True,
         help='JSON containing credentials to connect to AWS database'
         )
-    parser.add_argument(
-        '--path_to_workbooks', help='Path to variant workbooks'
-        )
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument(
+        '--path_to_workbooks',
+        help='Path to variant workbooks'
+    )
+    group.add_argument(
+        '--samples_file',
+        help='Path to file containing Excel paths'
+    )
     parser.add_argument(
         '--config', required=True,
         help='JSON config file containing required inputs'
         )
+    parser.add_argument(
+        '--organisation', choices=['CUH', 'NUH'], required=True,
+        help='Organisation: CUH or NUH'
+        )
+    parser.add_argument(
+        '--dry-run', action='store_true',
+        help='Run the script without making any changes '
+        'to the database or submitting to ClinVar'
+        )
+    parser.add_argument(
+        '--no-retry', action='store_true',
+        help='Do not retry failed submissions'
+    )
     args = parser.parse_args()
     return args
 
@@ -99,89 +120,121 @@ def main():
     # Ignore UserWarnings from setting dataframe attributes
     warnings.simplefilter(action='ignore', category=UserWarning)
 
-    # Identify cases in database which have a submission ID but no accession ID
-    print("Searching for variants will no accession ID...")
-    cuh_submission_df = db.select_variants_from_db(288359, engine, "NOT NULL")
-    nuh_submission_df = db.select_variants_from_db(509428, engine, "NOT NULL")
 
-    print(
-        f"Found {nuh_submission_df.shape[0]} with submission IDs but no "
-        f"accession IDs for NUH.\nFound {cuh_submission_df.shape[0]} "
-        "with submission IDs but no accession IDs for CUH."
-        )
+    if args.dry_run:
+        print("Dry run specified. No need to query DB and clinvar API. "
+              "No changes will be submitted to the database or ClinVar.")
+    else:
+        # Identify cases in database which have a submission ID but no accession ID
+        print("Searching for variants with no accession ID...")
+        cuh_submission_df = db.select_variants_from_db("288359", engine, "NOT NULL")
+        nuh_submission_df = db.select_variants_from_db("509428", engine, "NOT NULL")
 
-    cuh_submission_df.header = cuh_header
-    nuh_submission_df.header = nuh_header
+        print(
+            f"Found {nuh_submission_df.shape[0]} with submission IDs but no "
+            f"accession IDs for NUH.\nFound {cuh_submission_df.shape[0]} "
+            "with submission IDs but no accession IDs for CUH."
+            )
 
-    # If any exist, query clinvar API to retrieve accession IDs
-    for df in [cuh_submission_df, nuh_submission_df]:
-        if not df.empty:
-            for submission_id in list(df["submission_id"].unique()):
-                status, response = utils.submission_status_check(
-                    submission_id, df.header, api_url
-                )
-                accession_ids, errors = clinvar.process_submission_status(
-                    status, response
-                )
+        cuh_submission_df.header = cuh_header
+        nuh_submission_df.header = nuh_header
 
-                if accession_ids != {}:
-                    db.add_accession_ids_to_db(accession_ids, engine)
-
-                if errors != {}:
-                    db.add_clinvar_submission_error_to_db(
-                        errors, engine.connect()
+        # If any exist, query clinvar API to retrieve accession IDs
+        for df in [cuh_submission_df, nuh_submission_df]:
+            if not df.empty:
+                for submission_id in list(df["submission_id"].unique()):
+                    status, response = utils.submission_status_check(
+                        submission_id, df.header, api_url
+                    )
+                    accession_ids, errors = clinvar.process_submission_status(
+                        status, response
                     )
 
-    # Get any new workbooks and re-run any failed workbooks in given path
+                    if accession_ids != {}:
+                        db.add_accession_ids_to_db(accession_ids, engine)
+
+                    if errors != {}:
+                        db.add_clinvar_submission_error_to_db(
+                            errors, engine
+                        )
+
+    # Gather workbooks to process
+    workbooks_to_process = []
+    # Get config values
     if args.path_to_workbooks:
         print(f"Searching {args.path_to_workbooks}...")
-        filenames = glob.glob(args.path_to_workbooks + "*.xlsx")
-        print(f"Found {len(filenames)} workbooks")
-
-        # Get previously parsed workbooks
-        parsed_workbook_df = db.select_workbooks_from_db(
-            engine, "parse_status = TRUE"
+        filenames = glob.glob(
+            os.path.join(args.path_to_workbooks, "*.xlsx")
         )
-        parsed_list = parsed_workbook_df['workbook_name'].values
-        failed_parsing_df = db.select_workbooks_from_db(
-            engine, "parse_status = FALSE"
-        )
-        failed_list = failed_parsing_df['workbook_name'].values
+        # remove any CNV workbooks
+        workbooks_to_process = [f for f in filenames if not re.search(r'CNV', f, re.IGNORECASE)]
+        if not filenames:
+            print("No workbooks found in the specified path.")
+            raise SystemExit(1)
+        print(f"Found {len(workbooks_to_process)} workbooks")
+    elif args.samples_file:
+        print(f"Reading samples from {args.samples_file}...")
+        df = pd.read_csv(f"{args.samples_file}")
+        workbooks_to_process = df[~df['file_name'].str.contains('CNV', case=False, na=False)]['path'].tolist()
+        print(f"Found {len(workbooks_to_process)} workbooks")
 
-        for filename in filenames:
-            print(f"Processing {filename}")
-            # check if wb has not already been processed
-            file = os.path.basename(filename)
-            if file not in parsed_list:
-                print(
-                    f"{file} has not previously been parsed successfully.\n"
-                    f"Parsing {file}..."
-                )
-                workbook = load_workbook(filename)
-                if file not in failed_list:
-                    db.add_wb_to_db(file, "NULL", engine.connect())
+    # Get previously parsed workbooks
+    parsed_workbook_df = db.select_workbooks_from_db(
+        engine, "parse_status = TRUE"
+    )
+    parsed_list = parsed_workbook_df['workbook_name'].values
+    failed_parsing_df = db.select_workbooks_from_db(
+        engine, "parse_status = FALSE"
+    )
+    failed_list = failed_parsing_df['workbook_name'].values
 
-                # Get a df of data from each sheet in workbook:
-                df = utils.get_workbook_data(
-                    workbook, config, filename, file, engine.connect()
+    # Process workbooks
+    for filename in workbooks_to_process:
+        print(f"Processing {filename}")
+        # check if wb has not already been processed
+        file = os.path.basename(filename)
+        if file not in parsed_list:
+            print(
+                f"{file} has not previously been parsed successfully.\n"
+                f"Parsing {file}..."
+            )
+            workbook = load_workbook(filename)
+            if file not in failed_list:
+                # Was "NULL" but None in SQLAlchemy becomes NULL in SQL
+                db.add_wb_to_db(file, None, engine)
+            # Get a df of data from each sheet in workbook:
+            df = utils.get_workbook_data(
+                workbook,
+                config,
+                filename,
+                file,
+                engine,
+                args.organisation
+            )
+            if df is None:
+                print("No data parsed from workbook.")
+                continue
+            # If we reach this point, we have valid data
+            if args.dry_run:
+                print("Parsed data:"
+                      f"\n{df.head()}\n{df.shape[0]} rows in total."
                 )
-                if df is not None:
-                    if not df.empty:
-                        print(f"{df.shape[0]} variants to add to inca table.")
-                        db.add_variants_to_db(df, engine.connect())
-                    db.update_db_for_parsed_wb(file, engine.connect())
+                df = None
             else:
-                print(f"{file} has already been parsed. Skipping...")
+                if not df.empty:
+                    print(f"{df.shape[0]} variants to add to inca table.")
+                    db.add_variants_to_db(df, engine)
+                db.update_db_for_parsed_wb(file, engine)
+        else:
+            print(f"{file} has already been parsed. Skipping...")
 
-    else:
-        print("no path_to_workbooks to specified. Nothing to parse")
 
     # Select all variants that have interpreted = yes and are not submitted
     # Also exclude any variants meeting exclusion criteria set in the config
     if not args.hold_for_review:
         exclude = config["exclude"]
-        cuh_df = db.select_variants_from_db(288359, engine, "NULL", exclude)
-        nuh_df = db.select_variants_from_db(509428, engine, "NULL", exclude)
+        cuh_df = db.select_variants_from_db("288359", engine, "NULL", exclude)
+        nuh_df = db.select_variants_from_db("509428", engine, "NULL", exclude)
         print(
             f"Found {nuh_df.shape[0]} interpreted variants to submit for NUH.\n"
             f"Found {cuh_df.shape[0]} interpreted variants to submit for CUH."
@@ -197,12 +250,13 @@ def main():
                 )
                 response = clinvar.clinvar_api_request(
                     api_url, df.header, variants, df.url,
-                    args.print_submission_json
+                    args.print_submission_json,
+                    args.no_retry
                 )
                 if args.clinvar_testing is False:
                     db.add_submission_id_to_db(
                         response.json(),
-                        engine.connect(),
+                        engine,
                         df['local_id'].values
                     )
     else:

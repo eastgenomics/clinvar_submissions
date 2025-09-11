@@ -32,3 +32,27 @@ This script searches a given folder for Excel variant workbooks that have not pr
 * `--print_submission_json`: (boolean) Default is False, if specified as True will print each clinvar submission to the terminal. This is useful for testing.
 * `--hold_for_review`: (boolean) Default is False, if specified as True, will add the variants to the database but not submit to ClinVar. Can be used to allow manual review before submission.
 * `--path_to_workbooks`: Local path to Excel workbooks that need submitting. If not specified, parsing will be skipped and the script will only run the accession ID retrieval process.
+* `--samples_file`: Local path to a CSV file containing sample information. If specified, the script will use this file instead of searching for workbooks. The CSV should have columns for `file_name`, `sample_id`, `workbook_path`.
+* `--dry-run`: (boolean) Default is False, if specified as True, will not make any changes to the database or submit to ClinVar. Useful for testing.
+## Example usage
+```bash
+python clinvar_submissions.py \
+    --clinvar_api_key clinvar_api_keys.json \
+    --db_credentials db_credentials.json \
+    --config config.json \
+    --clinvar_testing True \
+    --print_submission_json True \
+    --hold_for_review True \
+    --path_to_workbooks /path/to/workbooks/
+or
+python pandora.py \
+    --dry-run \
+    --clinvar_api_key clinvar_api_keys_test.json \
+    --db_credentials test_db_config.json \
+    --config test_db_config.json \
+    --clinvar_testing \
+    --print_submission_json \
+    --organisation "CUH" \
+    --hold_for_review \
+    --samples_file data/test_extract_file_250710.csv
+```
