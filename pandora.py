@@ -233,6 +233,16 @@ def main():
     # Also exclude any variants meeting exclusion criteria set in the config
     if not args.hold_for_review:
         exclude = config["exclude"]
+        # Add DUP to the accession_id field for duplicates to exclude them
+        # from submission
+        print(
+            "Checking for duplicate variants... and setting accession_id to 'DUP'"
+            )
+        if not args.dry_run:
+            db.set_DUP_for_duplicate_null_accession(engine)
+        else:
+            print("Dry run specified. No changes will be made to the database.")
+
         cuh_df = db.select_variants_from_db("288359", engine, "NULL", exclude)
         nuh_df = db.select_variants_from_db("509428", engine, "NULL", exclude)
         print(

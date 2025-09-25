@@ -215,3 +215,24 @@ def add_clinvar_submission_error_to_db(errors, engine):
         # Batch submission which updates each local_id with its error
         conn.execute(query, payload)
 
+
+def set_DUP_for_duplicate_null_accession(engine):
+    """
+    Set accession_id = 'DUP' for all duplicate variants (same hgvsc, preferred_condition_name, organisation_id)
+    where accession_id IS NULL and another duplicate exists with accession_id IS NOT NULL.
+    """
+    query = text("""
+        UPDATE testdirectory.inca i
+        SET accession_id = 'DUP'
+        WHERE i.accession_id IS NULL
+          AND EXISTS (
+            SELECT 1
+            FROM testdirectory.inca j
+            WHERE j.hgvsc = i.hgvsc
+              AND j.preferred_condition_name = i.preferred_condition_name
+              AND j.organisation_id = i.organisation_id
+              AND j.accession_id IS NOT NULL
+          )
+    """)
+    with engine.begin() as conn:
+        conn.execute(query)
