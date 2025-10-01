@@ -6,6 +6,7 @@ import pandas as pd
 import dxpy
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from pandas import DataFrame
 
 
 def open_files(clarity):
@@ -13,10 +14,9 @@ def open_files(clarity):
     Open files and read in file contents to DataFrames
     """
     try:
-        with open(clarity) as fh:
-            clarity_df = pd.read_csv(fh, delimiter=",")
-    except FileNotFoundError:
-        raise FileNotFoundError(f"Clarity extract file not found: {clarity}")
+        clarity_df = pd.read_csv(clarity, delimiter=",")
+    except pd.errors.EmptyDataError:
+        raise ValueError(f"Clarity extract file is empty: {clarity}")
     except Exception as e:
         raise Exception(f"Error reading clarity extract: {e}")
 
@@ -153,7 +153,6 @@ def fetch_all_reports_for_assay(df, assay, chunk_size=100, max_workers=64):
 
     # Create a DataFrame from the records
     records_df = pd.DataFrame(all_records)
-    print(records_df.columns)
     if records_df.empty:
         print("No records found for the given sample IDs.")
         return df
@@ -232,45 +231,45 @@ def find_file_name(search_query):
 
 def filter_duplicate_files(df):
     """
-    Filter duplicate files based on specific rules:
-    - For samples with exactly 2 reports: keep files with _CNV_ or _SNV_,
-      but filter out files that don't contain _CNV_ or _SNV_ and end in _2
-    - For samples with != 2 reports: keep all files (will be handled separately)
+    Filter duplicate files using regex-based rules:
+    - For samples with exactly 2 reports: keep files containing _CNV_ or _SNV_;
+      filter out files that don't contain _CNV_ or _SNV_ and end with _2.xlsx
+    - For samples with != 2 reports: keep all files
     Inputs:
         df (pd.DataFrame): DataFrame containing sample IDs and file names
     Outputs:
         filtered_df (pd.DataFrame): DataFrame after applying the filtering rules
     """
-    # Group by sample_id
-    grouped = df.groupby("sample_id")
+    cnv_snv_re = re.compile(r"_(?:CNV|SNV)_")
+    endswith_2plus_re = re.compile(r".*_(?:[2-9]\d*)\.xlsx$", re.IGNORECASE)
+
     filtered_rows = []
-
-    for _sample_id, group in grouped:
-        if len(group) == 2:  # Exactly 2 reports
-            # Check each file in the group
-            files_to_keep = []
+    for _, group in df.groupby("sample_id"):
+        if len(group) >= 2:
             for _, row in group.iterrows():
-                filename = row["file_name"]
-                # Keep files that contain _CNV_ or _SNV_
-                if "_CNV_" in filename or "_SNV_" in filename:
-                    files_to_keep.append(row)
-                # Filter out files that don't contain _CNV_ or _SNV_ and end in _2
-                elif not (
-                    "_CNV_" in filename or "_SNV_" in filename
-                ) and filename.endswith("_2.xlsx"):
-                    continue  # Skip this file
-                else:
-                    files_to_keep.append(row)  # Keep other files
+                filename = str(row.get("file_name", ""))
+                has_cnv_snv = bool(cnv_snv_re.search(filename))
+                ends_with_2plus = bool(endswith_2plus_re.search(filename))
 
-            filtered_rows.extend(files_to_keep)
+                if ends_with_2plus:
+                    print(
+                        "Warning: File ends with a number >= 2 i.e. _2.xlsx. skipping it."
+                    )
+                    continue  # drop
+                elif has_cnv_snv and not ends_with_2plus:
+                    filtered_rows.append(row)
+                else:
+                    filtered_rows.append(row)
         else:
-            # Keep all rows for samples with != 2 reports (will be handled separately)
             filtered_rows.extend([row for _, row in group.iterrows()])
+
     filtered_df = pd.DataFrame(filtered_rows).reset_index(drop=True)
     return filtered_df
 
 
-def handle_clarity_extract(clarity_extract_path, assays, base_path) -> tuple[DataFrame, DataFrame, DataFrame | None]:
+def handle_clarity_extract(
+    clarity_extract_path, assays, base_path
+) -> tuple[DataFrame, DataFrame, DataFrame | None]:
     """
     Main function to handle clarity extract and return paths to workbooks
     Inputs:
@@ -295,13 +294,11 @@ def handle_clarity_extract(clarity_extract_path, assays, base_path) -> tuple[Dat
     report_df = pd.DataFrame()
     for assay in assays:
         print(f"Processing assay: {assay}")
-        assay_samples = clarity_df[clarity_df["Assay"] == assay]
+        assay_samples = clarity_df[clarity_df["Assay"] == assay].copy()
         assay_df = fetch_all_reports_for_assay(assay_samples, assay)
         report_df = pd.concat([report_df, assay_df], ignore_index=True)
 
-    print(report_df.head())
     print(f"Total reports fetched: {report_df.shape[0]}")
-    print(report_df.iloc[0:2, :])
 
     # Split R codes into a list
     report_df["R_codes"] = report_df["Test Directory Test Code"].str.split("|")
@@ -312,7 +309,8 @@ def handle_clarity_extract(clarity_extract_path, assays, base_path) -> tuple[Dat
 
     # Add the path to the processed reports
     report_df["path"] = report_df.apply(
-        lambda x: create_path(x["file_name"], base_path, x["Assay"], x["project_name"]), axis=1
+        lambda x: create_path(x["file_name"], base_path, x["Assay"], x["project_name"]),
+        axis=1,
     )
 
     # Add specimen ID to the processed report_df
@@ -346,7 +344,7 @@ def handle_clarity_extract(clarity_extract_path, assays, base_path) -> tuple[Dat
 
     # Drop duplicates on all columns except certain ones
     cols_to_check = [col for col in report_df.columns if col not in ["R_codes"]]
-    report_df = report_df.drop_duplicates(subset=cols_to_check)
+    report_df = report_df.drop_duplicates(subset=cols_to_check).copy()
     print(f"After dropping duplicates: {report_df.shape[0]} rows remaining")
 
     # Save rows with multiple reports per assay to a separate file
@@ -354,7 +352,7 @@ def handle_clarity_extract(clarity_extract_path, assays, base_path) -> tuple[Dat
         report_df.groupby(["sample_id", "Assay", "report_r_code"])
         .size()
         .reset_index(name="report_count")
-    )
+    ).copy()
     multiple_reports = multiple_reports[multiple_reports["report_count"] > 1]
     multiple_reports_df = None
     if not multiple_reports.empty:
@@ -365,7 +363,7 @@ def handle_clarity_extract(clarity_extract_path, assays, base_path) -> tuple[Dat
             multiple_reports[["sample_id", "Assay", "report_r_code"]],
             on=["sample_id", "Assay", "report_r_code"],
             how="inner",
-        )
+        ).copy()
     else:
         print("No samples with multiple reports per assay found.")
 
@@ -374,7 +372,7 @@ def handle_clarity_extract(clarity_extract_path, assays, base_path) -> tuple[Dat
         report_df.groupby(["sample_id", "Assay", "report_r_code"])
         .size()
         .reset_index(name="report_count")
-    )
+    ).copy()
     single_reports_df = report_df_grouped[report_df_grouped["report_count"] == 1]
     # Filter the original report_df to keep only samples with single reports
     report_df_filtered = pd.merge(
@@ -382,5 +380,5 @@ def handle_clarity_extract(clarity_extract_path, assays, base_path) -> tuple[Dat
         single_reports_df[["sample_id", "Assay", "report_r_code"]],
         on=["sample_id", "Assay", "report_r_code"],
         how="inner",
-    )
+    ).copy()
     return report_df_filtered, missing_data_df, multiple_reports_df
