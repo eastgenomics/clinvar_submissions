@@ -185,17 +185,17 @@ def main():
         print(f"Found {len(workbooks_to_process)} workbooks")
     elif args.clarity_extract:
         print(f"Reading clarity extract from {args.clarity_extract}...")
-        assays = config.get("Assays", [])
+        rd_assays = config.get("rare_disease_assays", [])
         base_path = config.get("base_path", "")
-        if assays == [] or base_path == "":
+        if rd_assays == [] or base_path == "":
             print(
-                "Assays and base_path must be specified in the config file "
+                "RD Assays and base_path must be specified in the config file "
                 "when using clarity extract."
             )
             raise SystemExit(1)
         clarity_df, missing_data_df, duplicate_data_df = (
             clarity_handler.handle_clarity_extract(
-                args.clarity_extract, assays, base_path
+                args.clarity_extract, rd_assays, base_path
             )
         )
         workbooks_to_process = clarity_df[
