@@ -23,19 +23,23 @@ def open_files(clarity):
     return clarity_df
 
 
-def get_matching_projects(assay):
+def get_matching_projects(assays):
     """
     Retrieve project IDs matching specific name patterns.
     This function searches for projects with names starting with '002' and ending with either 'CEN' or 'TWE'.
-
+    Inputs:
+    assays : list
+        The list of assay types to filter projects (e.g., ['CEN', 'TWE']).
     Outputs:
     matching_projects_tuple_list: list
         A list of tuples containing project IDs and their names.
         Each tuple is in the format (project_id, project_name).
     """
-    pattern = rf"^002.*_{assay}$"
+    query_str_for_assays = "|".join(assays)
+    # pattern: str = rf"^002.*_({query_str_for_assays})$"
+    re_pattern = rf"^002.*_(?:{query_str_for_assays})$"
     matching_projects = list(
-        dxpy.find_projects(name={"regexp": pattern}, describe=True)
+        dxpy.find_projects(name={"regexp": re_pattern}, describe=True)
     )
     matching_projects_tuple_list = [
         (proj["id"], proj["describe"]["name"]) for proj in matching_projects
@@ -100,7 +104,7 @@ def query_reports_for_project(project_id, sample_ids):
     return records
 
 
-def fetch_all_reports_for_assay(df, assay, chunk_size=100, max_workers=64):
+def fetch_all_reports(df, assays, chunk_size=100, max_workers=64):
     """
     Fetch all reports for the given DataFrame of sample IDs.
     This function retrieves project IDs matching specific name patterns,
@@ -111,8 +115,8 @@ def fetch_all_reports_for_assay(df, assay, chunk_size=100, max_workers=64):
 
     df : pd.DataFrame
         DataFrame containing sample IDs to search for.
-    assay : str
-        The assay type to filter projects (e.g., 'CEN' or 'TWE').
+    assays : list
+        The list of assay types to filter projects (e.g., ['CEN', 'TWE']).
     chunk_size : int, optional
         set number of ids to process at a time, by default 100
     max_workers : int, optional
@@ -123,7 +127,7 @@ def fetch_all_reports_for_assay(df, assay, chunk_size=100, max_workers=64):
         DataFrame containing the merged results with additional columns.
     """
     sample_ids = df["sample_id"].tolist()
-    project_info = get_matching_projects(assay)
+    project_info = get_matching_projects(assays)
     project_dict = dict(project_info)
 
     # Chunk sample IDs to manage search load
@@ -158,6 +162,8 @@ def fetch_all_reports_for_assay(df, assay, chunk_size=100, max_workers=64):
         return df
     # Merge with the original df to retain additional columns
     merged_df = pd.merge(df, records_df, on="sample_id", how="left")
+    print(f"Merged DataFrame shape: {merged_df.shape}")
+    print(merged_df.head())
 
     # Identify samples with multiple projects
     project_counts = merged_df.groupby("sample_id")["project_id"].nunique()
@@ -287,16 +293,16 @@ def handle_clarity_extract(
     clarity_df = open_files(clarity_extract_path)
 
     # Process data to construct a path for each specimen
-    clarity_df = clarity_df.astype(str)
+    #clarity_df = clarity_df.astype(str)
     # create df with column by splitting the Beaker Procedure Name to create a new column for assay
-    clarity_df["Assay"] = clarity_df["Beaker Procedure Name"].str.split(" ").str[0]
+    # clarity_df["procedure_name"] = clarity_df["Beaker Procedure Name"]
     clarity_df["sample_id"] = clarity_df["Specimen Identifier"].str.split("-").str[1]
     report_df = pd.DataFrame()
-    for assay in assays:
-        print(f"Processing assay: {assay}")
-        assay_samples = clarity_df[clarity_df["Assay"] == assay].copy()
-        assay_df = fetch_all_reports_for_assay(assay_samples, assay)
-        report_df = pd.concat([report_df, assay_df], ignore_index=True)
+
+    print(f"Processing assays: {assays}")
+    # assay_samples = clarity_df[clarity_df["Assay"] == assay].copy() # not available
+    report_df = fetch_all_reports(clarity_df, assays)
+    # report_df = pd.concat([report_df, assay_df], ignore_index=True)
 
     print(f"Total reports fetched: {report_df.shape[0]}")
 
@@ -307,6 +313,16 @@ def handle_clarity_extract(
         lambda x: [re.sub(r"\.\d+", "", code) for code in x if code.startswith("R")]
     )
 
+    # Get Assay from file_name using regex
+    def extract_assay_from_filename(filename):
+        if pd.isna(filename):
+            return None
+        match = re.search(r"(CEN|WES|TWE)", filename)
+        print(f"Extracted assay from {filename}: {match.group(1) if match else 'None'}")
+        return match.group(1) if match else None
+
+    report_df["Assay"] = report_df["file_name"].apply(extract_assay_from_filename)
+
     # Add the path to the processed reports
     report_df["path"] = report_df.apply(
         lambda x: create_path(x["file_name"], base_path, x["Assay"], x["project_name"]),
@@ -314,12 +330,27 @@ def handle_clarity_extract(
     )
 
     # Add specimen ID to the processed report_df
-    report_df["specimen_id"] = report_df["file_name"].str.split("-").str[0]
+    report_df["instrument_id"] = report_df["file_name"].str.split("-").str[0]
     report_df["full_sample_id"] = (
-        report_df["specimen_id"] + "-" + report_df["sample_id"]
+        report_df["instrument_id"] + "-" + report_df["sample_id"]
     )
     # create report_r_code column from file_name
     report_df["report_r_code"] = report_df["file_name"].str.extract(r"_(R\d+\.\d+)_")[0]
+
+    # Check if report_r_code is in R_codes list
+    def is_report_code_in_list(row):
+        r_codes = row["R_codes"]
+        report_code = row["report_r_code"]
+        if pd.isna(report_code) or pd.isna(r_codes):
+            return False
+        # Remove decimal from report_code for comparison
+        report_code_no_decimal = re.sub(r"\.\d+", "", report_code)
+        return report_code_no_decimal in [re.sub(r"\.\d+", "", code) for code in r_codes]
+
+    report_df["rcode_match"] = report_df.apply(is_report_code_in_list, axis=1)
+    # Filter rows where R code matches
+    report_df = report_df[report_df["rcode_match"]].copy()
+    report_df.drop(columns=["rcode_match"], inplace=True)
 
     # Stratify into multiple files for different outcomes
     # Filter out all rows where filename contains _CNV_ or _mosaic_
@@ -337,7 +368,7 @@ def handle_clarity_extract(
         )
 
     # Mask to filter out rows with NaN R codes and empty file names which aren't '' just blank
-    report_df = report_df.dropna(subset=["file_name", "R_codes"])
+    report_df = report_df.dropna(subset=["file_name", "report_r_code"]).copy()
     print(
         f"After filtering out NaN R codes and empty file names: {report_df.shape[0]} rows remaining"
     )
