@@ -198,6 +198,20 @@ def main():
                 args.clarity_extract, rd_assays, base_path
             )
         )
+        # Check files exist
+        def check_file_exists(path):
+            if pd.isna(path):
+                return False
+            return os.path.isfile(path)
+        clarity_df["file_exists"] = clarity_df["path"].apply(check_file_exists)
+        missing_files_df = clarity_df[~clarity_df["file_exists"]].copy()
+        print(f"Found {missing_files_df.shape[0]} missing files.")
+        if not missing_files_df.empty:
+            print(missing_files_df[["file_name", "path"]])
+        clarity_df = clarity_df[clarity_df["file_exists"]].copy()
+        clarity_df.drop(columns=["file_exists"], inplace=True)
+        print(f"Found {clarity_df.shape[0]} workbooks with existing files.")
+
         workbooks_to_process = clarity_df[
             ~clarity_df["file_name"].str.contains("CNV", case=False, na=False)
         ]["path"].tolist()
