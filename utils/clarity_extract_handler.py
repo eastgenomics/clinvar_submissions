@@ -275,7 +275,7 @@ def filter_duplicate_files(df):
 
 def handle_clarity_extract(
     clarity_extract_path, assays, base_path
-) -> tuple[DataFrame, DataFrame, DataFrame | None]:
+) -> tuple[DataFrame, DataFrame, DataFrame]:
     """
     Main function to handle clarity extract and return paths to workbooks
     Inputs:
@@ -307,10 +307,10 @@ def handle_clarity_extract(
     print(f"Total reports fetched: {report_df.shape[0]}")
 
     # Split R codes into a list
-    report_df["R_codes"] = report_df["Test Directory Test Code"].str.split("|")
+    report_df["R_codes"] = report_df["Test Directory Test Code"].fillna("").str.split("|")
     # remove decimal points from R codes
     report_df["R_codes"] = report_df["R_codes"].apply(
-        lambda x: [re.sub(r"\.\d+", "", code) for code in x if code.startswith("R")]
+        lambda x: [re.sub(r"\.\d+", "", code) for code in x if isinstance(code, str) and code.startswith("R")]
     )
 
     # Get Assay from file_name using regex
@@ -350,7 +350,7 @@ def handle_clarity_extract(
     report_df["rcode_match"] = report_df.apply(is_report_code_in_list, axis=1)
     # Filter rows where R code matches
     report_df = report_df[report_df["rcode_match"]].copy()
-    report_df.drop(columns=["rcode_match"], inplace=True)
+    report_df = report_df.drop(columns=["rcode_match"])
 
     # Stratify into multiple files for different outcomes
     # Filter out all rows where filename contains _CNV_ or _mosaic_

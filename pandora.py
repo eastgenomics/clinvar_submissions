@@ -180,10 +180,10 @@ def main():
         print(f"Reading samples from {args.samples_file}...")
         samples_df = pd.read_csv(f"{args.samples_file}")
         # Check files exist and exclude any that don't
-        samples_df = utils.check_files_exist(samples_df, "path")
-
+        samples_df = utils.check_files_exist_and_exclude(samples_df, "path")
+        # remove any CNV workbooks and mosaic workbooks
         workbooks_to_process = samples_df[
-            ~samples_df["file_name"].str.contains("CNV", case=False, na=False)
+            ~samples_df["file_name"].str.contains("CNV|mosaic", case=False, na=False)
         ]["path"].tolist()
         print(f"Found {len(workbooks_to_process)} workbooks")
     elif args.clarity_extract:
@@ -196,17 +196,17 @@ def main():
                 "when using clarity extract."
             )
             raise SystemExit(1)
+        clarity_df = pd.DataFrame()
+        missing_data_df = pd.DataFrame()
         clarity_df, missing_data_df, duplicate_data_df = (
             clarity_handler.handle_clarity_extract(
                 args.clarity_extract, rd_assays, base_path
             )
         )
         # Check files exist and exclude any that don't
-        clarity_df = utils.check_files_exist(clarity_df, "path")
-
-        workbooks_to_process = clarity_df[
-            ~clarity_df["file_name"].str.contains("CNV", case=False, na=False)
-        ]["path"].tolist()
+        clarity_df = utils.check_files_exist_and_exclude(clarity_df, "path")
+        
+        workbooks_to_process = clarity_df["path"].tolist()
 
     # Get previously parsed workbooks
     parsed_workbook_df = db.select_workbooks_from_db(engine, "parse_status = TRUE")
