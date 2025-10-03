@@ -7,7 +7,8 @@ import dxpy
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pandas import DataFrame
-
+from pathlib import Path
+import os
 
 def open_files(clarity):
     """
@@ -181,35 +182,42 @@ def fetch_all_reports(df, assays, chunk_size=100, max_workers=64):
 
 def create_path(filename, base_path, assay, run):
     """
-    Create a path to a specific file on clingen
-    Inputs:
+    Create a path to a specific file on clingen using pathlib.
 
+    Inputs:
         assay (str): either CEN or WES/TWE
-        base_path (str): base path to clingen folder
+        base_path (str or Path): base path to clingen folder
         filename (str): filename for the xlsx report
         run (str): sequencing run name
+
     Outputs:
-        path (str): path to the given filename on clingen
+        path (Path or None): path to the given filename on clingen
     """
     # Handle NaN values
     if pd.isna(run) or run == "nan":
         return None
 
-    # Convert to string if it's not already
+    # Ensure run is a string
     run = str(run)
 
-    base_path = rf"{base_path}"
+    # Ensure base_path is a Path object
+    base_path = Path(base_path)
 
+    # Clean up run name
     run_without_prefix = re.sub(r"^002_", "", run)
+    run_without_suffix = re.sub(r"_[^_]*$", "", run_without_prefix)
+
+    # Build path depending on assay
     if assay == "CEN":
-        path = base_path + rf"{assay}/Run\ folders/{run_without_prefix}/{filename}"
+        path = base_path / assay / "Run folders" / run_without_suffix / filename
     elif assay in ("WES", "TWE"):
-        path = base_path + rf"{assay}/{run_without_prefix}/{filename}"
+        path = base_path / assay / run_without_suffix / filename
     else:
         print(
             f"Warning: Unknown assay '{assay}' for filename {filename}. Returning None."
         )
         return None
+
     return path
 
 

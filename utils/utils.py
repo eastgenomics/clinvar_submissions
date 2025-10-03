@@ -10,6 +10,7 @@ import json
 import uuid
 import time
 from typing import Optional
+from pathlib import Path
 
 
 def get_folder_of_input_file(filename: str) -> str:
@@ -617,7 +618,10 @@ def check_file_exists(path):
     """
     if pd.isna(path):
         return False
-    return os.path.isfile(path)
+
+    path = Path(path)  # ensure it’s a Path object
+
+    return path.exists()
 
 
 def check_files_exist_and_exclude(samples_df: pd.DataFrame, path_column: str) -> pd.DataFrame:
@@ -642,5 +646,4 @@ def check_files_exist_and_exclude(samples_df: pd.DataFrame, path_column: str) ->
         print(missing_files_df[["file_name", "path"]])
     samples_df = samples_df[samples_df["file_exists"]].copy()
     df_filtered = samples_df.drop(columns=["file_exists"])
-    print(f"Found {samples_df.shape[0]} workbooks with existing files.")
     return df_filtered

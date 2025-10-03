@@ -205,7 +205,7 @@ def main():
         )
         # Check files exist and exclude any that don't
         clarity_df = utils.check_files_exist_and_exclude(clarity_df, "path")
-        
+
         workbooks_to_process = clarity_df["path"].tolist()
 
     # Get previously parsed workbooks
