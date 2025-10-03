@@ -618,3 +618,26 @@ def check_file_exists(path):
     if pd.isna(path):
         return False
     return os.path.isfile(path)
+
+
+def check_files_exist_and_exclude(samples_df: pd.DataFrame, path_column: str) -> pd.DataFrame:
+    """
+    Check if files exist at the paths specified in the given column of the DataFrame.
+    Exclude rows where the file does not exist.
+    Inputs:
+        samples_df (pd.DataFrame): The DataFrame containing file paths.
+        path_column (str): The name of the column containing file paths.
+    Outputs:
+        df_filtered (pd.DataFrame): A DataFrame with rows excluded where the file does not exist.
+    """
+    # Check files exist mv this into another function to make DRYer
+    print("Checking files exist...")
+    samples_df["file_exists"] = samples_df["path"].apply(check_file_exists)
+    missing_files_df = samples_df[~samples_df["file_exists"]].copy()
+    print(f"Found {missing_files_df.shape[0]} missing files.")
+    if not missing_files_df.empty:
+        print(missing_files_df[["file_name", "path"]])
+    samples_df = samples_df[samples_df["file_exists"]].copy()
+    df_filtered = samples_df.drop(columns=["file_exists"], inplace=True).copy()
+    print(f"Found {samples_df.shape[0]} workbooks with existing files.")
+    return df_filtered
