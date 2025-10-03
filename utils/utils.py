@@ -632,12 +632,15 @@ def check_files_exist_and_exclude(samples_df: pd.DataFrame, path_column: str) ->
     """
     # Check files exist mv this into another function to make DRYer
     print("Checking files exist...")
+    if samples_df.empty:
+        print("No samples to check.")
+        return samples_df
     samples_df["file_exists"] = samples_df["path"].apply(check_file_exists)
-    missing_files_df = samples_df[~samples_df["file_exists"]].copy()
+    missing_files_df = samples_df[~samples_df["file_exists"]]
     print(f"Found {missing_files_df.shape[0]} missing files.")
     if not missing_files_df.empty:
         print(missing_files_df[["file_name", "path"]])
     samples_df = samples_df[samples_df["file_exists"]].copy()
-    df_filtered = samples_df.drop(columns=["file_exists"], inplace=True).copy()
+    df_filtered = samples_df.drop(columns=["file_exists"])
     print(f"Found {samples_df.shape[0]} workbooks with existing files.")
     return df_filtered
