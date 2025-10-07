@@ -2,6 +2,7 @@
 Script to add variants from workbooks to Shire database and submit variants
 from Shire database to ClinVar
 Version: 1.0.0
+- Output dataframes from clarity extract handling for review
 """
 
 import json
@@ -17,7 +18,7 @@ from openpyxl import load_workbook
 import pandas as pd
 import re
 from sqlalchemy import create_engine
-
+from datetime import datetime as dt
 
 def open_json(file: str) -> dict:
     """
@@ -91,6 +92,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--no-retry", action="store_true", help="Do not retry failed submissions"
     )
+    parser.add_argument(
+        "--use-paths", action="store_true", help="Use paths from clarity extract directly"
+    )
     args = parser.parse_args()
     return args
 
@@ -100,6 +104,11 @@ def main():
     Script entry point
     """
     args = parse_args()
+
+    # Get current date and time for later use in filenames
+    now = dt.now()
+    # Format it safely for filenames (e.g. 2025-10-07_14-32-10)
+    timestamp = now.strftime("%Y-%m-%d_%H-%M-%S")
 
     # Read files
     config = open_json(args.config)
@@ -203,10 +212,20 @@ def main():
                 args.clarity_extract, rd_assays, base_path
             )
         )
-        # Check files exist and exclude any that don't
-        clarity_df = utils.check_files_exist_and_exclude(clarity_df, "path")
+        if args.use_paths:
+            print("Using paths from clarity extract directly.")
+            # Check files exist and exclude any that don't
+            clarity_df = utils.check_files_exist_and_exclude(clarity_df, "path")
+            workbooks_to_process = clarity_df["path"].tolist()
+            print(f"Found {len(workbooks_to_process)} workbooks")
+        else:
+            print(
+                "--use-paths not specified so outputting clarity extract dataframes for review."
+            )
+            print("These can be processed by using --samples-file option.")
+            # Output dataframes for review name after date and input clarity?
+            clarity_df.to_csv(f"clarity_extract_parsed_paths_{timestamp}.csv", index=False)
 
-        workbooks_to_process = clarity_df["path"].tolist()
 
     # Get previously parsed workbooks
     parsed_workbook_df = db.select_workbooks_from_db(engine, "parse_status = TRUE")
