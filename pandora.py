@@ -99,6 +99,35 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
+def output_inconsistent_files(missing_data_df=pd.DataFrame(),
+                              duplicate_data_df=pd.DataFrame(),
+                              timestamp=None
+                              ):
+    """
+    Output any inconsistent files from clarity extract handling for review
+    Inputs:
+        missing_data_df (pd.DataFrame): dataframe of samples with missing data
+        duplicate_data_df (pd.DataFrame): dataframe of samples with duplicate data
+        timestamp (str): timestamp to append to filenames
+    Outputs:
+        None
+    Side effects:
+        Outputs CSV files if any inconsistent data found
+    """
+    if not missing_data_df.empty:
+        print(
+            f"{missing_data_df.shape[0]} samples with missing data found in "
+            f"clarity extract. See missing_data_clarity_extract_{timestamp}.csv for details."
+        )
+        missing_data_df.to_csv(f"missing_data_clarity_extract_{timestamp}.csv", index=False)
+    if not duplicate_data_df.empty:
+        print(
+            f"{duplicate_data_df.shape[0]} duplicate samples found in "
+            f"clarity extract. See duplicate_data_clarity_extract_{timestamp}.csv for details."
+        )
+        duplicate_data_df.to_csv(f"duplicate_data_clarity_extract_{timestamp}.csv", index=False)
+
+
 def main():
     """
     Script entry point
@@ -212,6 +241,7 @@ def main():
                 args.clarity_extract, rd_assays, base_path
             )
         )
+        output_inconsistent_files(missing_data_df, duplicate_data_df, timestamp)
         if args.use_paths:
             print("Using paths from clarity extract directly.")
             # Check files exist and exclude any that don't
