@@ -20,6 +20,7 @@ def example_csv(tmp_path):
 
 
 def test_open_files_with_example(example_csv):
+    """Test opening a valid clarity extract CSV file."""
     df = ceh.open_files(example_csv)
     assert isinstance(df, pd.DataFrame)
     assert set(df.columns) == {
@@ -33,6 +34,7 @@ def test_open_files_with_example(example_csv):
     assert df.shape[0] == 2
 
 def test_open_files_with_empty_file(tmp_path):
+    """Test opening an empty CSV file raises ValueError."""
     empty_file = tmp_path / "empty.csv"
     empty_file.write_text("")
     with pytest.raises(ValueError) as exc:
@@ -40,6 +42,7 @@ def test_open_files_with_empty_file(tmp_path):
     assert "Clarity extract file is empty" in str(exc.value)
 
 def test_open_files_with_bad_file(tmp_path):
+    """Test opening a malformed CSV file raises Exception."""
     bad_file = tmp_path / "bad.csv"
     bad_file.write_text('a,b\n1,"2\n3,4\n')  # Unclosed quote to trigger a ParserError
     with pytest.raises(Exception) as exc:
@@ -47,20 +50,28 @@ def test_open_files_with_bad_file(tmp_path):
     assert str(exc.value).startswith("Error reading clarity extract:")
 
 def test_create_path_cen():
-    path = ceh.create_path("file.xlsx", "/mnt/clingen/", "CEN", "002_ABC123")
-    assert path == "/mnt/clingen/CEN/Run\\ folders/ABC123/file.xlsx"
+    """Test path creation for CEN assay."""
+    path = ceh.create_path("file.xlsx", Path("/mnt/clingen/"), "CEN", "002_ABC123")
+    expected = Path("/mnt/clingen/CEN/Run folders/ABC123/file.xlsx")
+    assert isinstance(path, Path)
+    assert path == expected
 
 
 def test_create_path_wes():
-    path = ceh.create_path("file.xlsx", "/mnt/clingen/", "WES", "002_DEF456")
-    assert path == "/mnt/clingen/WES/DEF456/file.xlsx"
+    """Test path creation for WES assay."""
+    path = ceh.create_path("file.xlsx", Path("/mnt/clingen/"), "WES", "002_DEF456")
+    expected = Path("/mnt/clingen/WES/DEF456/file.xlsx")
+    assert isinstance(path, Path)
+    assert path == expected
 
 
 def test_create_path_nan():
-    assert ceh.create_path("file.xlsx", "/mnt/clingen/", "CEN", float("nan")) is None
+    """Test path creation with NaN run folder returns None."""
+    assert ceh.create_path("file.xlsx", Path("/mnt/clingen/"), "CEN", float("nan")) is None
 
 
 def test_filter_duplicate_files_various_cases():
+    """Test filtering duplicate files with various scenarios."""
     df = pd.DataFrame(
         {
             "sample_id": [
@@ -99,11 +110,13 @@ def test_filter_duplicate_files_various_cases():
 
 
 def test_query_reports_for_project_handles_no_sample_ids():
+    """Test querying reports with no sample IDs returns empty list."""
     # Should return empty list if sample_ids is empty
     assert ceh.query_reports_for_project("proj-1", []) == []
 
 
 def test_query_reports_for_project_handles_bad_filename(monkeypatch):
+    """Test querying reports with a bad filename skips the file."""
     # Patch dxpy.find_data_objects to return a file with a bad name
     monkeypatch.setattr(
         ceh.dxpy,
@@ -116,6 +129,7 @@ def test_query_reports_for_project_handles_bad_filename(monkeypatch):
 
 
 def test_open_files_success(tmp_path):
+    """Test opening a valid CSV file."""
     # Create a dummy CSV file
     csv_path = tmp_path / "test.csv"
     csv_path.write_text("a,b\n1,2\n3,4")
@@ -125,6 +139,7 @@ def test_open_files_success(tmp_path):
 
 
 def test_open_files_empty_file(tmp_path):
+    """Test opening an empty CSV file raises ValueError."""
     empty_csv = tmp_path / "empty.csv"
     empty_csv.write_text("")
     with pytest.raises(ValueError) as exc:
@@ -133,6 +148,7 @@ def test_open_files_empty_file(tmp_path):
 
 
 def test_open_files_parser_error(tmp_path):
+    """Test opening a malformed CSV file raises Exception."""
     bad_csv = tmp_path / "bad.csv"
     # Unclosed quote to trigger a ParserError
     bad_csv.write_text('a,b\n1,"2\n3,4\n')
@@ -142,6 +158,7 @@ def test_open_files_parser_error(tmp_path):
 
 
 def test_open_files_directory_path_raises(tmp_path):
+    """Test opening a directory path raises Exception."""
     with pytest.raises(Exception) as exc:
         ceh.open_files(str(tmp_path))
     assert "Error reading clarity extract:" in str(exc.value)
@@ -149,6 +166,7 @@ def test_open_files_directory_path_raises(tmp_path):
 
 @patch("utils.clarity_extract_handler.dxpy.find_projects")
 def test_get_matching_projects(mock_find_projects):
+    """Test getting matching projects in normal scenario."""
     mock_find_projects.return_value = [
         {"id": "proj-1", "describe": {"name": "002_foo_CEN"}},
         {"id": "proj-2", "describe": {"name": "002_bar_CEN"}},
@@ -159,6 +177,7 @@ def test_get_matching_projects(mock_find_projects):
 
 @patch("utils.clarity_extract_handler.dxpy.find_data_objects")
 def test_query_reports_for_project(mock_find_data_objects):
+    """Test querying reports for a project with valid sample IDs."""
     mock_find_data_objects.return_value = [
         {"describe": {"name": "1234567-24080852.xlsx"}},
         {"describe": {"name": "8901234-24090855.xlsx"}},
@@ -166,15 +185,3 @@ def test_query_reports_for_project(mock_find_data_objects):
     records = ceh.query_reports_for_project("proj-1", ["123", "456"])
     assert isinstance(records, list)
     assert all("sample_id" in r for r in records)
-
-
-def test_filter_duplicate_files():
-    df = pd.DataFrame(
-        {
-            "sample_id": ["A", "A", "B"],
-            "file_name": ["foo_CNV_.xlsx", "foo_SNV_.xlsx", "bar.xlsx"],
-        }
-    )
-    filtered = ceh.filter_duplicate_files(df)
-    assert isinstance(filtered, pd.DataFrame)
-    assert set(filtered["sample_id"]) == {"A", "B"}
