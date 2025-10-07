@@ -9,7 +9,6 @@
     "Allele origin": "germline",
     "Affected status": "yes",
     "rare_disease_assays": ["CEN", "TWE"],
-    // "cancer_assays": ["TSO500", "MYE", "PCAN"],
     "base_path": "/appdata/clingen/cg/Regional Genetics Laboratories/Molecular Genetics/Data archive/Sequencing HT/",
     "CUH folder": "CUH",
     "NUH folder": "NUH",
