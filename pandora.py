@@ -250,9 +250,9 @@ def main():
             print(f"Found {len(workbooks_to_process)} workbooks")
         else:
             print(
-                "--use-paths not specified so outputting clarity extract dataframes for review."
+                "--use_paths not specified so outputting clarity extract dataframes for review."
             )
-            print("These can be processed by using --samples-file option.")
+            print("These can be processed by using --samples_file option.")
             # Output dataframes for review name after date and input clarity?
             clarity_df.to_csv(f"clarity_extract_parsed_paths_{timestamp}.csv", index=False)
 
