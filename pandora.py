@@ -84,16 +84,16 @@ def parse_args() -> argparse.Namespace:
         help="Organisation: CUH or NUH",
     )
     parser.add_argument(
-        "--dry-run",
+        "--dry_run",
         action="store_true",
         help="Run the script without making any changes "
         "to the database or submitting to ClinVar",
     )
     parser.add_argument(
-        "--no-retry", action="store_true", help="Do not retry failed submissions"
+        "--no_retry", action="store_true", help="Do not retry failed submissions"
     )
     parser.add_argument(
-        "--use-paths", action="store_true", help="Use paths from clarity extract directly"
+        "--use_paths", action="store_true", help="Use paths from clarity extract directly"
     )
     args = parser.parse_args()
     return args
