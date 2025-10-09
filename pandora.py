@@ -218,12 +218,14 @@ def main():
         print(f"Reading samples from {args.samples_file}...")
         samples_df = pd.read_csv(f"{args.samples_file}")
         # Check files exist and exclude any that don't
-        samples_df = utils.check_files_exist_and_exclude(samples_df, "path")
+        samples_df, missing_data_df = utils.check_files_exist_and_exclude(samples_df, "path")
         # remove any CNV workbooks and mosaic workbooks
         workbooks_to_process = samples_df[
             ~samples_df["file_name"].str.contains("CNV|mosaic", case=False, na=False)
         ]["path"].tolist()
         print(f"Found {len(workbooks_to_process)} workbooks")
+        # Output any inconsistent files for review
+        output_inconsistent_files(missing_data_df, pd.DataFrame(), timestamp)
     elif args.clarity_extract:
         print(f"Reading clarity extract from {args.clarity_extract}...")
         rd_assays = config.get("rare_disease_assays", [])
@@ -241,13 +243,17 @@ def main():
                 args.clarity_extract, rd_assays, base_path
             )
         )
-        output_inconsistent_files(missing_data_df, duplicate_data_df, timestamp)
         if args.use_paths:
             print("Using paths from clarity extract directly.")
             # Check files exist and exclude any that don't
-            clarity_df = utils.check_files_exist_and_exclude(clarity_df, "path")
+            clarity_df, missing_file_paths_df = utils.check_files_exist_and_exclude(clarity_df, "path")
+            # merge missing data dfs
+            missing_data_df = pd.concat([missing_data_df, missing_file_paths_df], ignore_index=True)
+            # remove any CNV workbooks and mosaic workbooks
             workbooks_to_process = clarity_df["path"].tolist()
             print(f"Found {len(workbooks_to_process)} workbooks")
+            # Output any inconsistent files for review
+            output_inconsistent_files(missing_data_df, duplicate_data_df, timestamp)
         else:
             print(
                 "--use_paths not specified so outputting clarity extract dataframes for review."
@@ -255,7 +261,6 @@ def main():
             print("These can be processed by using --samples_file option.")
             # Output dataframes for review name after date and input clarity?
             clarity_df.to_csv(f"clarity_extract_parsed_paths_{timestamp}.csv", index=False)
-
 
     # Get previously parsed workbooks
     parsed_workbook_df = db.select_workbooks_from_db(engine, "parse_status = TRUE")
