@@ -160,7 +160,8 @@ def fetch_all_reports(df, assays, chunk_size=100, max_workers=64):
     records_df = pd.DataFrame(all_records)
     if records_df.empty:
         print("No records found for the given sample IDs.")
-        return df
+        empty_cols = {"file_name": pd.NA, "project_id": pd.NA, "project_name": pd.NA}
+        return df.copy().assign(**empty_cols)
     # Merge with the original df to retain additional columns
     merged_df = pd.merge(df, records_df, on="sample_id", how="left")
     print(f"Merged DataFrame shape: {merged_df.shape}")
@@ -233,14 +234,14 @@ def find_file_name(search_query):
     files = list(
         dxpy.find_data_objects(name=search_query, name_mode="glob", describe=True)
     )
+    filenames = []
     for file in files:
-        filenames = []
         filenames.append(file.get("describe").get("name"))
-        if len(filenames) != 1:
-            print(f"{search_query} returned multiple/no files")
-            return None
-        else:
-            return filenames[0]
+    if len(filenames) != 1:
+        print(f"{search_query} returned multiple/no files")
+        return None
+    else:
+        return filenames[0]
 
 
 def filter_duplicate_files(df):

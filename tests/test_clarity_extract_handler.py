@@ -19,6 +19,7 @@ def example_csv(tmp_path):
     return str(dst)
 
 
+
 def test_open_files_with_example(example_csv):
     """Test opening a valid clarity extract CSV file."""
     df = ceh.open_files(example_csv)
@@ -185,3 +186,33 @@ def test_query_reports_for_project(mock_find_data_objects):
     records = ceh.query_reports_for_project("proj-1", ["123", "456"])
     assert isinstance(records, list)
     assert all("sample_id" in r for r in records)
+
+
+def test_find_file_name_no_files_found(monkeypatch):
+    # No files returned
+    monkeypatch.setattr(ceh.dxpy, "find_data_objects", lambda **kwargs: [])
+    assert ceh.find_file_name("SP-24010R0031*") is None
+
+
+def test_find_file_name_multiple_files(monkeypatch):
+    # Multiple files returned -> should return None
+    monkeypatch.setattr(
+        ceh.dxpy,
+        "find_data_objects",
+        lambda **kwargs: [
+            {"describe": {"name": "SP-24010R0031-CEN_R208.1_1.xlsx"}},
+            {"describe": {"name": "SP-24010R0031-CEN_R208.1_2.xlsx"}},
+        ],
+    )
+    assert ceh.find_file_name("SP-24010R0031*") is None
+
+
+def test_find_file_name_single_file(monkeypatch):
+    # Single file returned -> should return that filename
+    monkeypatch.setattr(
+        ceh.dxpy,
+        "find_data_objects",
+        lambda **kwargs: [{"describe": {"name": "SP-24010R0031-CEN_R208.1_1.xlsx"}}],
+    )
+    assert ceh.find_file_name("SP-24010R0031*") == "SP-24010R0031-CEN_R208.1_1.xlsx"
+
