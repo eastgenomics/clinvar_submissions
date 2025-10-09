@@ -565,11 +565,8 @@ def submission_status_check(
     if response.status_code not in [200]:
         raise RuntimeError(
             "Status check failed:\n"
-            + str(headers)
-            + "\n"
-            + url
-            + "\n"
-            + response_content
+            f"{url}\n"
+            f"{response_content}"
         )
 
     status_response = json.loads(response_content)
