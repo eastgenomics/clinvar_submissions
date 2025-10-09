@@ -171,7 +171,7 @@ def test_get_matching_projects(mock_find_projects):
         {"id": "proj-1", "describe": {"name": "002_foo_CEN"}},
         {"id": "proj-2", "describe": {"name": "002_bar_CEN"}},
     ]
-    result = ceh.get_matching_projects("CEN")
+    result = ceh.get_matching_projects(["CEN"])
     assert result == [("proj-1", "002_foo_CEN"), ("proj-2", "002_bar_CEN")]
 
 
