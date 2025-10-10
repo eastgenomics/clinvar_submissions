@@ -42,12 +42,13 @@ def test_open_files_with_empty_file(tmp_path):
         ceh.open_files(str(empty_file))
     assert "Clarity extract file is empty" in str(exc.value)
 
-def test_open_files_with_bad_file(tmp_path):
+def test_open_files_parser_error(tmp_path):
     """Test opening a malformed CSV file raises Exception."""
-    bad_file = tmp_path / "bad.csv"
-    bad_file.write_text('a,b\n1,"2\n3,4\n')  # Unclosed quote to trigger a ParserError
+    bad_csv = tmp_path / "bad.csv"
+    # Unclosed quote to trigger a ParserError
+    bad_csv.write_text('a,b\n1,"2\n3,4\n')
     with pytest.raises(Exception) as exc:
-        ceh.open_files(str(bad_file))
+        ceh.open_files(str(bad_csv))
     assert str(exc.value).startswith("Error reading clarity extract:")
 
 def test_create_path_cen():
@@ -127,36 +128,6 @@ def test_query_reports_for_project_handles_bad_filename(monkeypatch):
     records = ceh.query_reports_for_project("proj-1", ["123"])
     # Should skip the file and return an empty list
     assert records == []
-
-
-def test_open_files_success(tmp_path):
-    """Test opening a valid CSV file."""
-    # Create a dummy CSV file
-    csv_path = tmp_path / "test.csv"
-    csv_path.write_text("a,b\n1,2\n3,4")
-    df = ceh.open_files(str(csv_path))
-    assert isinstance(df, pd.DataFrame)
-    assert df.shape == (2, 2)
-
-
-def test_open_files_empty_file(tmp_path):
-    """Test opening an empty CSV file raises ValueError."""
-    empty_csv = tmp_path / "empty.csv"
-    empty_csv.write_text("")
-    with pytest.raises(ValueError) as exc:
-        ceh.open_files(str(empty_csv))
-    assert "Clarity extract file is empty" in str(exc.value)
-
-
-def test_open_files_parser_error(tmp_path):
-    """Test opening a malformed CSV file raises Exception."""
-    bad_csv = tmp_path / "bad.csv"
-    # Unclosed quote to trigger a ParserError
-    bad_csv.write_text('a,b\n1,"2\n3,4\n')
-    with pytest.raises(Exception) as exc:
-        ceh.open_files(str(bad_csv))
-    assert str(exc.value).startswith("Error reading clarity extract:")
-
 
 def test_open_files_directory_path_raises(tmp_path):
     """Test opening a directory path raises Exception."""
