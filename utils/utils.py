@@ -629,13 +629,16 @@ def check_files_exist_and_exclude(samples_df: pd.DataFrame, path_column: str) ->
         samples_df (pd.DataFrame): The DataFrame containing file paths.
         path_column (str): The name of the column containing file paths.
     Outputs:
-        df_filtered (pd.DataFrame): A DataFrame with rows excluded where the file does not exist.
+        df_filtered (pd.DataFrame):
+            A DataFrame with rows excluded where the file does not exist.
+        missing_files_df (pd.DataFrame):
+            A DataFrame of rows where the file does not exist in clingen.
     """
     # Check files exist mv this into another function to make DRYer
     print("Checking files exist...")
     if samples_df.empty:
         print("No samples to check.")
-        return samples_df
+        return samples_df, pd.DataFrame()
     samples_df["file_exists"] = samples_df[path_column].apply(check_file_exists)
     missing_files_df = samples_df[~samples_df["file_exists"]]
     print(f"Found {missing_files_df.shape[0]} missing files.")
