@@ -32,6 +32,17 @@ def test_open_files_with_example(example_csv):
         "Last Final Verify Date",
     }  # Columns in the example CSV
     assert df.shape[0] == 2  # Two rows in the example CSV
+    expected_df = pd.DataFrame(
+        {
+            "Beaker Procedure Name": ["WES NGS", "CEN NGS"],
+            "Received Specimen Date Time": ["2024-01-25 03:55", "2024-02-21 11:08"],
+            "Specimen Identifier": ["SP-24015R0015", "SP-24010R0031"],
+            "Test Directory Test Code": ["R149.1", "R208.1"],
+            "Test Validation Status": ["Verified", "Verified"],
+            "Last Final Verify Date": ["2024-01-27 12:55", "2024-02-25 12:18"],
+        }
+    )
+    pd.testing.assert_frame_equal(df, expected_df)
 
 
 def test_open_files_with_empty_file(tmp_path):
@@ -52,19 +63,22 @@ def test_open_files_parser_error(tmp_path):
         ceh.open_files(str(bad_csv))
     assert str(exc.value).startswith("Error reading clarity extract:")
 
+#002_251010_A01303_0320_BACWV9DRX7_37_CEN
+#002_251010_A01303_0120_AHCWV8DRX7_38_TWE
+
 
 def test_create_path_cen():
     """Test path creation for CEN assay."""
-    path = ceh.create_path("file.xlsx", Path("/mnt/clingen/"), "CEN", "002_ABC123")
-    expected = Path("/mnt/clingen/CEN/Run folders/ABC123/file.xlsx")
+    path = ceh.create_path("file.xlsx", Path("/mnt/clingen/"), "CEN", "002_251010_A01303_0320_BACWV9DRX7_37_CEN")
+    expected = Path("/mnt/clingen/CEN/Run folders/251010_A01303_0320_BACWV9DRX7/file.xlsx")
     assert isinstance(path, Path)
     assert path == expected
 
 
 def test_create_path_wes():
     """Test path creation for WES assay."""
-    path = ceh.create_path("file.xlsx", Path("/mnt/clingen/"), "WES", "002_DEF456")
-    expected = Path("/mnt/clingen/WES/DEF456/file.xlsx")
+    path = ceh.create_path("file.xlsx", Path("/mnt/clingen/"), "WES", "002_251010_A01303_0120_AHCWV8DRX7_38_TWE")
+    expected = Path("/mnt/clingen/WES/251010_A01303_0120_AHCWV8DRX7/file.xlsx")
     assert isinstance(path, Path)
     assert path == expected
 

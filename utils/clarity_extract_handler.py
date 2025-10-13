@@ -213,8 +213,12 @@ def create_path(filename, base_path, assay, run):
     base_path = Path(base_path)
 
     # extract run_name from run string
-    run_name_match = re.search(r"(?:002_)?(\d{6}_[A-Z0-9]+_\d{4}_[A-Z0-9]+)", run)
-    run_name = run_name_match.group(1) if run_name_match else None
+    run_name_match = re.search(r"(002_)(\d{6}_[A-Z0-9]+_\d{4}_[A-Z0-9]+)_(\d{2})?_[A-Za-z0-9]+", run)
+    # group 1 = 002_
+    # group 2 = DDMMYY_SEQUENCER_TESTCODE_FLOWCELL
+    # group 3 = genome build
+    # group 4 = Assay
+    run_name = run_name_match.group(2) if run_name_match else None
 
     # Build path depending on assay
     if assay == "CEN":
