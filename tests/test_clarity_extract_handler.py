@@ -126,17 +126,25 @@ def test_get_matching_projects(mock_find_projects):
     result = ceh.get_matching_projects(["CEN"])
     assert result == [("proj-1", "002_foo_CEN"), ("proj-2", "002_bar_CEN")]
 
-
 @patch("utils.clarity_extract_handler.dxpy.find_data_objects")
-def test_query_reports_for_project(mock_find_data_objects):
-    """Test querying reports for a project with valid sample IDs."""
+def test_query_reports_for_project_exact_id_match(mock_find_data_objects):
     mock_find_data_objects.return_value = [
-        {"describe": {"name": "1234567-24080852.xlsx"}},
-        {"describe": {"name": "8901234-24090855.xlsx"}},
+        {"describe": {"name": "119696617-25110R0008-25NGCEN82-9527-M-97444487_R208.1_SNV_1.xlsx"}},
+        {"describe": {"name": "123696617-25110R0009-25NGCEN82-9527-F-97444487_R208.1_SNV_1.xlsx"}},
     ]
-    records = ceh.query_reports_for_project("proj-1", ["123", "456"])
-    assert isinstance(records, list)
-    assert all("sample_id" in r for r in records)
+
+    records = ceh.query_reports_for_project("proj-1", ["1234567", "8901234"])
+
+    expected_list = [
+        {'sample_id': '25110R0008',
+         'project_id': 'proj-1',
+         'file_name': '119696617-25110R0008-25NGCEN82-9527-M-97444487_R208.1_SNV_1.xlsx'},
+        {'sample_id': '25110R0009',
+         'project_id': 'proj-1',
+         'file_name': '123696617-25110R0009-25NGCEN82-9527-F-97444487_R208.1_SNV_1.xlsx'}
+    ]
+    assert records == expected_list
+
 
 
 def test_find_file_name_no_files_found(monkeypatch):
