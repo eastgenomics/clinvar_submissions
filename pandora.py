@@ -1,8 +1,6 @@
 """
 Script to add variants from workbooks to Shire database and submit variants
 from Shire database to ClinVar
-Version: 1.0.0
-- Output dataframes from clarity extract handling for review
 """
 
 import json
