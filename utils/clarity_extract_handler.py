@@ -244,44 +244,6 @@ def find_file_name(search_query):
         return filenames[0]
 
 
-def filter_duplicate_files(df):
-    """
-    Filter duplicate files using regex-based rules:
-    - For samples with exactly 2 reports: keep files containing _CNV_ or _SNV_;
-      filter out files that don't contain _CNV_ or _SNV_ and end with _2.xlsx
-    - For samples with != 2 reports: keep all files
-    Inputs:
-        df (pd.DataFrame): DataFrame containing sample IDs and file names
-    Outputs:
-        filtered_df (pd.DataFrame): DataFrame after applying the filtering rules
-    """
-    cnv_snv_re = re.compile(r"_(?:CNV|SNV)_")
-    endswith_2plus_re = re.compile(r".*_(?:[2-9]\d*)\.xlsx$", re.IGNORECASE)
-
-    filtered_rows = []
-    for _, group in df.groupby("sample_id"):
-        if len(group) >= 2:
-            for _, row in group.iterrows():
-                filename = str(row.get("file_name", ""))
-                has_cnv_snv = bool(cnv_snv_re.search(filename))
-                ends_with_2plus = bool(endswith_2plus_re.search(filename))
-
-                if ends_with_2plus:
-                    print(
-                        "Warning: File ends with a number >= 2 i.e. _2.xlsx. skipping it."
-                    )
-                    continue  # drop
-                elif has_cnv_snv and not ends_with_2plus:
-                    filtered_rows.append(row)
-                else:
-                    filtered_rows.append(row)
-        else:
-            filtered_rows.extend([row for _, row in group.iterrows()])
-
-    filtered_df = pd.DataFrame(filtered_rows).reset_index(drop=True)
-    return filtered_df
-
-
 def handle_clarity_extract(
     clarity_extract_path, assays, base_path
 ) -> tuple[DataFrame, DataFrame, DataFrame]:
@@ -304,14 +266,11 @@ def handle_clarity_extract(
     # Process data to construct a path for each specimen
     #clarity_df = clarity_df.astype(str)
     # create df with column by splitting the Beaker Procedure Name to create a new column for assay
-    # clarity_df["procedure_name"] = clarity_df["Beaker Procedure Name"]
     clarity_df["sample_id"] = clarity_df["Specimen Identifier"].str.split("-").str[1]
     report_df = pd.DataFrame()
 
     print(f"Processing assays: {assays}")
-    # assay_samples = clarity_df[clarity_df["Assay"] == assay].copy() # not available
     report_df = fetch_all_reports(clarity_df, assays)
-    # report_df = pd.concat([report_df, assay_df], ignore_index=True)
 
     print(f"Total reports fetched: {report_df.shape[0]}")
 
