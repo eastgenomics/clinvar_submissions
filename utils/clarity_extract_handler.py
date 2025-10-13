@@ -37,7 +37,6 @@ def get_matching_projects(assays):
         Each tuple is in the format (project_id, project_name).
     """
     query_str_for_assays = "|".join(assays)
-    # pattern: str = rf"^002.*_({query_str_for_assays})$"
     re_pattern = rf"^002.*_(?:{query_str_for_assays})$"
     matching_projects = list(
         dxpy.find_projects(name={"regexp": re_pattern}, describe=True)
@@ -204,15 +203,15 @@ def create_path(filename, base_path, assay, run):
     # Ensure base_path is a Path object
     base_path = Path(base_path)
 
-    # Clean up run name
-    run_without_prefix = re.sub(r"^002_", "", run)
-    run_without_suffix = re.sub(r"_[^_]*$", "", run_without_prefix)
+    # extract run_name from run string
+    run_name_match = re.search(r"(?:002_)?(\d{6}_[A-Z0-9]+_\d{4}_[A-Z0-9]+)", run)
+    run_name = run_name_match.group(1) if run_name_match else None
 
     # Build path depending on assay
     if assay == "CEN":
-        path = base_path / assay / "Run folders" / run_without_suffix / filename
+        path = base_path / assay / "Run folders" / run_name / filename
     elif assay in ("WES", "TWE"):
-        path = base_path / assay / run_without_suffix / filename
+        path = base_path / assay / run_name / filename
     else:
         print(
             f"Warning: Unknown assay '{assay}' for filename {filename}. Returning None."
@@ -232,11 +231,11 @@ def find_file_name(search_query):
         filename (str): a file name, or None if no or multiple matches found
     """
     files = list(
-        dxpy.find_data_objects(name=search_query, name_mode="glob", describe=True)
+        dxpy.find_data_objects(name=search_query, name_mode="glob", describe={
+            "fields": {"name": True}
+        })
     )
-    filenames = []
-    for file in files:
-        filenames.append(file.get("describe").get("name"))
+    filenames = [file.get("describe").get("name") for file in files]
     if len(filenames) != 1:
         print(f"{search_query} returned multiple/no files")
         return None
