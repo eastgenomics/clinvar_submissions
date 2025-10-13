@@ -220,6 +220,11 @@ def create_path(filename, base_path, assay, run):
     # group 4 = Assay
     run_name = run_name_match.group(2) if run_name_match else None
 
+    # Return None if run_name extraction failed
+    if run_name is None:
+        print(f"Warning: Could not extract run_name from '{run}' for filename {filename}. Returning None.")
+        return None
+
     # Build path depending on assay
     if assay == "CEN":
         path = base_path / assay / "Run folders" / run_name / filename

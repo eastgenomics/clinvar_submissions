@@ -90,6 +90,20 @@ def test_create_path_nan():
     )
 
 
+def test_create_path_unknown_assay():
+    """Test path creation with unknown assay returns None."""
+    assert (
+        ceh.create_path("file.xlsx", Path("/mnt/clingen/"), "UNKNOWN", "002_251010_A01303_0320_BACWV9DRX7_37_UNKNOWN") is None
+    )
+
+
+def test_create_path_short_run_folder():
+    """Test path creation with short run folder returns None."""
+    assert (
+        ceh.create_path("file.xlsx", Path("/mnt/clingen/"), "CEN", "002_251010") is None
+    )
+
+
 def test_query_reports_for_project_handles_no_sample_ids():
     """Test querying reports with no sample IDs returns empty list."""
     # Should return empty list if sample_ids is empty
@@ -144,7 +158,6 @@ def test_query_reports_for_project_exact_id_match(mock_find_data_objects):
          'file_name': '123696617-25110R0009-25NGCEN82-9527-F-97444487_R208.1_SNV_1.xlsx'}
     ]
     assert records == expected_list
-
 
 
 def test_find_file_name_no_files_found(monkeypatch):
