@@ -272,7 +272,6 @@ def handle_clarity_extract(
     clarity_df = open_files(clarity_extract_path)
 
     # Process data to construct a path for each specimen
-    #clarity_df = clarity_df.astype(str)
     # create df with column by splitting the Beaker Procedure Name to create a new column for assay
     clarity_df["sample_id"] = clarity_df["Specimen Identifier"].str.split("-").str[1]
     report_df = pd.DataFrame()
