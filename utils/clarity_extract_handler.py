@@ -13,6 +13,15 @@ import os
 def open_files(clarity):
     """
     Open files and read in file contents to DataFrames
+    Inputs:
+    clarity : str
+        The path to the clarity extract file.
+    Outputs:
+    clarity_df : pd.DataFrame
+        DataFrame containing the contents of the clarity extract file.
+    Raises:
+        ValueError: If the clarity extract file is empty.
+        Exception: If there is an error reading the clarity extract file.
     """
     try:
         clarity_df = pd.read_csv(clarity, delimiter=",")
