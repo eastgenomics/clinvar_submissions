@@ -369,7 +369,7 @@ def handle_clarity_extract(
         .reset_index(name="report_count")
     ).copy()
     multiple_reports = multiple_reports[multiple_reports["report_count"] > 1]
-    multiple_reports_df = None
+    multiple_reports_df = pd.DataFrame()
     if not multiple_reports.empty:
         print(f"Samples with multiple reports per assay: {multiple_reports.shape[0]}")
         # Filter the original report_df to keep only samples with single reports
