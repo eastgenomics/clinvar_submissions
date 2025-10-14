@@ -302,7 +302,6 @@ def handle_clarity_extract(
         if pd.isna(filename):
             return None
         match = re.search(r"(CEN|WES|TWE)", filename)
-        print(f"Extracted assay from {filename}: {match.group(1) if match else 'None'}")
         return match.group(1) if match else None
 
     report_df["Assay"] = report_df["file_name"].apply(extract_assay_from_filename)
