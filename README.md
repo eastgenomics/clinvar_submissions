@@ -61,7 +61,7 @@ python clinvar_submissions.py \
     --path_to_workbooks /path/to/workbooks/
 or
 python pandora.py \
-    --dry-run \
+    --dry_run \
     --clinvar_api_key clinvar_api_keys_test.json \
     --db_credentials test_db_config.json \
     --config test_db_config.json \
