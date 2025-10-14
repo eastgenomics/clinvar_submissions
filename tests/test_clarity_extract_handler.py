@@ -63,21 +63,30 @@ def test_open_files_parser_error(tmp_path):
         ceh.open_files(str(bad_csv))
     assert str(exc.value).startswith("Error reading clarity extract:")
 
-#002_251010_A01303_0320_BACWV9DRX7_37_CEN
-#002_251010_A01303_0120_AHCWV8DRX7_38_TWE
-
 
 def test_create_path_cen():
     """Test path creation for CEN assay."""
-    path = ceh.create_path("file.xlsx", Path("/mnt/clingen/"), "CEN", "002_251010_A01303_0320_BACWV9DRX7_37_CEN")
-    expected = Path("/mnt/clingen/CEN/Run folders/251010_A01303_0320_BACWV9DRX7/file.xlsx")
+    path = ceh.create_path(
+        "file.xlsx",
+        Path("/mnt/clingen/"),
+        "CEN",
+        "002_251010_A01303_0320_BACWV9DRX7_37_CEN",
+    )
+    expected = Path(
+        "/mnt/clingen/CEN/Run folders/251010_A01303_0320_BACWV9DRX7/file.xlsx"
+    )
     assert isinstance(path, Path)
     assert path == expected
 
 
 def test_create_path_wes():
     """Test path creation for WES assay."""
-    path = ceh.create_path("file.xlsx", Path("/mnt/clingen/"), "WES", "002_251010_A01303_0120_AHCWV8DRX7_38_TWE")
+    path = ceh.create_path(
+        "file.xlsx",
+        Path("/mnt/clingen/"),
+        "WES",
+        "002_251010_A01303_0120_AHCWV8DRX7_38_TWE",
+    )
     expected = Path("/mnt/clingen/WES/251010_A01303_0120_AHCWV8DRX7/file.xlsx")
     assert isinstance(path, Path)
     assert path == expected
@@ -93,7 +102,13 @@ def test_create_path_nan():
 def test_create_path_unknown_assay():
     """Test path creation with unknown assay returns None."""
     assert (
-        ceh.create_path("file.xlsx", Path("/mnt/clingen/"), "UNKNOWN", "002_251010_A01303_0320_BACWV9DRX7_37_UNKNOWN") is None
+        ceh.create_path(
+            "file.xlsx",
+            Path("/mnt/clingen/"),
+            "UNKNOWN",
+            "002_251010_A01303_0320_BACWV9DRX7_37_UNKNOWN",
+        )
+        is None
     )
 
 
@@ -140,22 +155,35 @@ def test_get_matching_projects(mock_find_projects):
     result = ceh.get_matching_projects(["CEN"])
     assert result == [("proj-1", "002_foo_CEN"), ("proj-2", "002_bar_CEN")]
 
+
 @patch("utils.clarity_extract_handler.dxpy.find_data_objects")
 def test_query_reports_for_project_exact_id_match(mock_find_data_objects):
     mock_find_data_objects.return_value = [
-        {"describe": {"name": "119696617-25110R0008-25NGCEN82-9527-M-97444487_R208.1_SNV_1.xlsx"}},
-        {"describe": {"name": "123696617-25110R0009-25NGCEN82-9527-F-97444487_R208.1_SNV_1.xlsx"}},
+        {
+            "describe": {
+                "name": "119696617-25110R0008-25NGCEN82-9527-M-97444487_R208.1_SNV_1.xlsx"
+            }
+        },
+        {
+            "describe": {
+                "name": "123696617-25110R0009-25NGCEN82-9527-F-97444487_R208.1_SNV_1.xlsx"
+            }
+        },
     ]
 
     records = ceh.query_reports_for_project("proj-1", ["1234567", "8901234"])
 
     expected_list = [
-        {'sample_id': '25110R0008',
-         'project_id': 'proj-1',
-         'file_name': '119696617-25110R0008-25NGCEN82-9527-M-97444487_R208.1_SNV_1.xlsx'},
-        {'sample_id': '25110R0009',
-         'project_id': 'proj-1',
-         'file_name': '123696617-25110R0009-25NGCEN82-9527-F-97444487_R208.1_SNV_1.xlsx'}
+        {
+            "sample_id": "25110R0008",
+            "project_id": "proj-1",
+            "file_name": "119696617-25110R0008-25NGCEN82-9527-M-97444487_R208.1_SNV_1.xlsx",
+        },
+        {
+            "sample_id": "25110R0009",
+            "project_id": "proj-1",
+            "file_name": "123696617-25110R0009-25NGCEN82-9527-F-97444487_R208.1_SNV_1.xlsx",
+        },
     ]
     assert records == expected_list
 
