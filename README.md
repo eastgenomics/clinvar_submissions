@@ -4,7 +4,7 @@
 This script searches a given folder for Excel variant workbooks that have not previously been parsed successfully, extracts variants from those workbooks and adds variants to the INCA table. It then checks all the variants in the INCA table for an Interpreted status of 'yes' and submits those that have been interpreted to ClinVar.
 
 ## Process map
-![Image of workflow](clinvar_submissions_process.png)
+![Image of workflow](clinvar_submissions_process_v1.1.0.png)
 
 ## Inputs
 **Required:**
