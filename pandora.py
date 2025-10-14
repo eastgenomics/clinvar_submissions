@@ -97,8 +97,8 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
-def output_inconsistent_files(missing_data_df=pd.DataFrame(),
-                              duplicate_data_df=pd.DataFrame(),
+def output_inconsistent_files(missing_data_df=None,
+                              duplicate_data_df=None,
                               timestamp=None
                               ):
     """
@@ -112,6 +112,15 @@ def output_inconsistent_files(missing_data_df=pd.DataFrame(),
     Side effects:
         Outputs CSV files if any inconsistent data found
     """
+    if missing_data_df is None:
+        missing_data_df = pd.DataFrame()
+    if duplicate_data_df is None:
+        duplicate_data_df = pd.DataFrame()
+    if timestamp is None:
+        print("Timestamp not provided. Not outputting inconsistent files.")
+        return
+
+    # Output any inconsistent files for review
     if not missing_data_df.empty:
         print(
             f"{missing_data_df.shape[0]} samples with missing data found in "
@@ -124,7 +133,8 @@ def output_inconsistent_files(missing_data_df=pd.DataFrame(),
             f"clarity extract. See duplicate_data_clarity_extract_{timestamp}.csv for details."
         )
         duplicate_data_df.to_csv(f"duplicate_data_clarity_extract_{timestamp}.csv", index=False)
-
+    if missing_data_df.empty and duplicate_data_df.empty:
+        print("No inconsistent data found in clarity extract.")
 
 def main():
     """
