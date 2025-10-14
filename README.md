@@ -42,12 +42,12 @@ These are mutually exclusive, one must be specified.
 
 
 **Optional:**
-* `--use_paths`: (boolean) Default is False, if specified as True, will use the paths from the clarity extract directly. If False, will output a CSV for review.
-* `--no_retry`: (boolean) Default is False, if specified as True will not retry failed submissions.
-* `--clinvar_testing`: (boolean) Default is False, if specified as True will use the test clinvar endpoint
-* `--print_submission_json`: (boolean) Default is False, if specified as True will print each clinvar submission to the terminal. This is useful for testing.
-* `--hold_for_review`: (boolean) Default is False, if specified as True, will add the variants to the database but not submit to ClinVar. Can be used to allow manual review before submission.
-* `--dry_run`: (boolean) Default is False, if specified as True, will not make any changes to the database or submit to ClinVar. Useful for testing.
+* `--use_paths`: (boolean) Default is False, if specified, will use the paths from the clarity extract directly. If False, will output a CSV for review.
+* `--no_retry`: (boolean) Default is False, if specified will not retry failed submissions.
+* `--clinvar_testing`: (boolean) Default is False, if specified will use the test clinvar endpoint
+* `--print_submission_json`: (boolean) Default is False, if specified will print each clinvar submission to the terminal. This is useful for testing.
+* `--hold_for_review`: (boolean) Default is False, if specified, will add the variants to the database but not submit to ClinVar. Can be used to allow manual review before submission.
+* `--dry_run`: (boolean) Default is False, if specified, will not make any changes to the database or submit to ClinVar. Useful for testing.
 
 ## Example usage
 ```bash
