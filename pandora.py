@@ -18,6 +18,7 @@ import re
 from sqlalchemy import create_engine
 from datetime import datetime as dt
 
+
 def open_json(file: str) -> dict:
     """
     Inputs:
@@ -91,16 +92,17 @@ def parse_args() -> argparse.Namespace:
         "--no_retry", action="store_true", help="Do not retry failed submissions"
     )
     parser.add_argument(
-        "--use_paths", action="store_true", help="Use paths from clarity extract directly"
+        "--use_paths",
+        action="store_true",
+        help="Use paths from clarity extract directly",
     )
     args = parser.parse_args()
     return args
 
 
-def output_inconsistent_files(missing_data_df=None,
-                              duplicate_data_df=None,
-                              timestamp=None
-                              ):
+def output_inconsistent_files(
+    missing_data_df=None, duplicate_data_df=None, timestamp=None
+):
     """
     Output any inconsistent files from clarity extract handling for review
     Inputs:
@@ -126,15 +128,20 @@ def output_inconsistent_files(missing_data_df=None,
             f"{missing_data_df.shape[0]} samples with missing data found in "
             f"clarity extract. See missing_data_clarity_extract_{timestamp}.csv for details."
         )
-        missing_data_df.to_csv(f"missing_data_clarity_extract_{timestamp}.csv", index=False)
+        missing_data_df.to_csv(
+            f"missing_data_clarity_extract_{timestamp}.csv", index=False
+        )
     if not duplicate_data_df.empty:
         print(
             f"{duplicate_data_df.shape[0]} duplicate samples found in "
             f"clarity extract. See duplicate_data_clarity_extract_{timestamp}.csv for details."
         )
-        duplicate_data_df.to_csv(f"duplicate_data_clarity_extract_{timestamp}.csv", index=False)
+        duplicate_data_df.to_csv(
+            f"duplicate_data_clarity_extract_{timestamp}.csv", index=False
+        )
     if missing_data_df.empty and duplicate_data_df.empty:
         print("No inconsistent data found in clarity extract.")
+
 
 def main():
     """
@@ -226,7 +233,9 @@ def main():
         print(f"Reading samples from {args.samples_file}...")
         samples_df = pd.read_csv(f"{args.samples_file}")
         # Check files exist and exclude any that don't
-        samples_df, missing_data_df = utils.check_files_exist_and_exclude(samples_df, "path")
+        samples_df, missing_data_df = utils.check_files_exist_and_exclude(
+            samples_df, "path"
+        )
         # remove any CNV workbooks and mosaic workbooks
         workbooks_to_process = samples_df[
             ~samples_df["file_name"].str.contains("CNV|mosaic", case=False, na=False)
@@ -254,9 +263,13 @@ def main():
         if args.use_paths:
             print("Using paths from clarity extract directly.")
             # Check files exist and exclude any that don't
-            clarity_df, missing_file_paths_df = utils.check_files_exist_and_exclude(clarity_df, "path")
+            clarity_df, missing_file_paths_df = utils.check_files_exist_and_exclude(
+                clarity_df, "path"
+            )
             # merge missing data dfs
-            missing_data_df = pd.concat([missing_data_df, missing_file_paths_df], ignore_index=True)
+            missing_data_df = pd.concat(
+                [missing_data_df, missing_file_paths_df], ignore_index=True
+            )
             # remove any CNV workbooks and mosaic workbooks
             workbooks_to_process = clarity_df["path"].tolist()
             print(f"Found {len(workbooks_to_process)} workbooks")
@@ -268,7 +281,13 @@ def main():
             )
             print("These can be processed by using --samples_file option.")
             # Output dataframes for review name after date and input clarity?
-            clarity_df.to_csv(f"clarity_extract_parsed_paths_{timestamp}.csv", index=False)
+            clarity_df.to_csv(
+                f"clarity_extract_parsed_paths_{timestamp}.csv", index=False
+            )
+            print(
+                f"Clarity extract parsed paths output to clarity_extract_parsed_paths_{timestamp}.csv"
+            )
+            output_inconsistent_files(missing_data_df, duplicate_data_df, timestamp)
 
     # Get previously parsed workbooks
     parsed_workbook_df = db.select_workbooks_from_db(engine, "parse_status = TRUE")
