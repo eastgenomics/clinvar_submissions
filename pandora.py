@@ -162,9 +162,11 @@ def main():
     # Set up API headers and select API url
     cuh_api_key = api_keys["cuh"]
     nuh_api_key = api_keys["nuh"]
+    dnanexus_api_key = api_keys["dnanexus"]
 
     cuh_header = clinvar.create_header(cuh_api_key)
     nuh_header = clinvar.create_header(nuh_api_key)
+    utils.dx_login(dnanexus_api_key)
     api_url = utils.select_api_url(args.clinvar_testing, config)
 
     # Create SQLAlchemy engine to connect to AWS database

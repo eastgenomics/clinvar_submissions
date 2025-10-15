@@ -11,7 +11,33 @@ import uuid
 import time
 from typing import Optional
 from pathlib import Path
+import dxpy
 
+def dx_login(dnanexus_token: str) -> None:
+    """
+    Function to check DNANexus auth token.
+    Inputs:
+        dnanexus_token (str): DNANexus auth token
+    Outputs:
+        None
+    Side effects:
+        Sets DNANexus security context to use the provided token
+    """
+    DX_SECURITY_CONTEXT = {
+        "auth_token_type": "Bearer",
+        "auth_token": dnanexus_token,
+    }
+
+    # set token to env
+    dxpy.set_security_context(DX_SECURITY_CONTEXT)
+
+    try:
+        dxpy.api.system_whoami()
+        print("DNANexus authentication successful.")
+    except Exception as e:
+        print("DNANexus authentication failed.")
+        print(e)
+    return
 
 def get_folder_of_input_file(filename: str) -> str:
     """
