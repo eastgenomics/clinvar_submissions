@@ -353,7 +353,6 @@ def filtering_reports(report_df):
         print("Report DataFrame is empty or None. Skipping filtering.")
         return report_df
 
-    report_df.to_csv("test_all_reports_df.csv", index=False)
     report_df["rcode_match"] = report_df.apply(is_report_code_in_list, axis=1)
     # Filter rows where R code doesn't match
     report_df = report_df[report_df["rcode_match"]].copy()
@@ -363,7 +362,6 @@ def filtering_reports(report_df):
     filtered_df = report_df[
         ~report_df["file_name"].str.contains(r"_(CNV|mosaic)_", na=False)
     ]
-    filtered_df.to_csv("test_filtered_reports.csv", index=False)
 
     return filtered_df
 
