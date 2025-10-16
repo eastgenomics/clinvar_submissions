@@ -233,9 +233,13 @@ def create_path(filename, base_path, assay, run):
 
     # Build path depending on assay
     if assay == "CEN":
-        path = base_path / assay / "Run folders" / run_name / filename
+        # Build run_folder name i.e. 002_240923_AH7K2WDMXY_0001_CEN
+        run_folder = f"{run_name}_{assay}"
+        path = base_path / assay / "Run folders" / run_folder / filename
     elif assay in ("WES", "TWE"):
-        path = base_path / assay / run_name / filename
+        # Build run_folder name i.e. 002_240923_AH7K2WDMXY_0001_CEN
+        run_folder = f"{run_name}_TWE"
+        path = base_path / "WES" / run_folder / filename
     else:
         print(
             f"Warning: Unknown assay '{assay}' for filename {filename}. Returning None."
