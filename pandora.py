@@ -17,6 +17,7 @@ import pandas as pd
 import re
 from sqlalchemy import create_engine
 from datetime import datetime as dt
+from pathlib import Path
 
 
 def open_json(file: str) -> dict:
@@ -96,12 +97,36 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Use paths from clarity extract directly",
     )
+    parser.add_argument(
+        "--output_dir",
+        type=validate_output_dir,
+        help="Directory to output any inconsistent files to",
+        required=True,
+    )
     args = parser.parse_args()
     return args
 
 
+def validate_output_dir(path_str: str) -> Path:
+    """
+    Validate output directory exists or create it
+    Inputs:
+        output_dir (str): path to output directory
+    Outputs:
+        output_dir (str): validated path to output directory
+    Side effects:
+        Creates output directory if it does not exist
+    """
+
+    path = Path(path_str).expanduser().resolve()
+    path.mkdir(parents=True, exist_ok=True)
+    if not path.exists() or not path.is_dir():
+        raise argparse.ArgumentTypeError(f"{path} is not a valid directory")
+    return path
+
+
 def output_inconsistent_files(
-    missing_data_df=None, duplicate_data_df=None, timestamp=None
+    missing_data_df=None, duplicate_data_df=None, timestamp=None, output_dir=None
 ):
     """
     Output any inconsistent files from clarity extract handling for review
@@ -128,17 +153,19 @@ def output_inconsistent_files(
             f"{missing_data_df.shape[0]} samples with missing data found in "
             f"clarity extract. See missing_data_clarity_extract_{timestamp}.csv for details."
         )
-        missing_data_df.to_csv(
-            f"missing_data_clarity_extract_{timestamp}.csv", index=False
+        path_to_missing = os.path.join(
+            output_dir, f"missing_data_clarity_extract_{timestamp}.csv"
         )
+        missing_data_df.to_csv(path_to_missing, index=False)
     if not duplicate_data_df.empty:
         print(
             f"{duplicate_data_df.shape[0]} duplicate samples found in "
             f"clarity extract. See duplicate_data_clarity_extract_{timestamp}.csv for details."
         )
-        duplicate_data_df.to_csv(
-            f"duplicate_data_clarity_extract_{timestamp}.csv", index=False
+        path_to_duplicate = os.path.join(
+            output_dir, f"duplicate_data_clarity_extract_{timestamp}.csv"
         )
+        duplicate_data_df.to_csv(path_to_duplicate, index=False)
     if missing_data_df.empty and duplicate_data_df.empty:
         print("No inconsistent data found in clarity extract.")
 
@@ -148,7 +175,6 @@ def main():
     Script entry point
     """
     args = parse_args()
-
     # Get current date and time for later use in filenames
     now = dt.now()
     # Format it safely for filenames (e.g. 2025-10-07_14-32-10)
@@ -244,7 +270,9 @@ def main():
         ]["path"].tolist()
         print(f"Found {len(workbooks_to_process)} workbooks")
         # Output any inconsistent files for review
-        output_inconsistent_files(missing_data_df, pd.DataFrame(), timestamp)
+        output_inconsistent_files(
+            missing_data_df, pd.DataFrame(), timestamp, args.output_dir
+        )
     elif args.clarity_extract:
         print(f"Reading clarity extract from {args.clarity_extract}...")
         rd_assays = config.get("rare_disease_assays", [])
@@ -276,20 +304,28 @@ def main():
             workbooks_to_process = clarity_df["path"].tolist()
             print(f"Found {len(workbooks_to_process)} workbooks")
             # Output any inconsistent files for review
-            output_inconsistent_files(missing_data_df, duplicate_data_df, timestamp)
+            output_inconsistent_files(
+                missing_data_df, duplicate_data_df, timestamp, args.output_dir
+            )
         else:
             print(
                 "--use_paths not specified so outputting clarity extract dataframes for review."
             )
             print("These can be processed by using --samples_file option.")
             # Output dataframes for review name after date and input clarity?
+            path_to_parsed_clarity = os.path.join(
+                args.output_dir, f"clarity_extract_parsed_paths_{timestamp}.csv"
+            )
             clarity_df.to_csv(
-                f"clarity_extract_parsed_paths_{timestamp}.csv", index=False
+                path_to_parsed_clarity,
+                index=False,
             )
             print(
-                f"Clarity extract parsed paths output to clarity_extract_parsed_paths_{timestamp}.csv"
+                f"Clarity extract parsed paths output to {path_to_parsed_clarity}"
             )
-            output_inconsistent_files(missing_data_df, duplicate_data_df, timestamp)
+            output_inconsistent_files(
+                missing_data_df, duplicate_data_df, timestamp, args.output_dir
+            )
 
     # Get previously parsed workbooks
     parsed_workbook_df = db.select_workbooks_from_db(engine, "parse_status = TRUE")
