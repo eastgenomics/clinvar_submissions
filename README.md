@@ -39,7 +39,7 @@ These are mutually exclusive, one must be specified.
   * Test Directory Test Code
   * Test Validation Status
   * Last Final Verify Date
-
+* `--output_dir`: (path to output directory) If specified, the script will output any inconsistent/parsed clarity files to this directory.
 
 **Optional:**
 * `--use_paths`: (boolean) Default is False, if specified, will use the paths from the clarity extract directly. If False, will output a CSV for review.
