@@ -49,7 +49,7 @@ def test_open_files_with_empty_file(tmp_path):
     """Test opening an empty CSV file raises ValueError."""
     empty_file = tmp_path / "empty.csv"
     empty_file.write_text("")
-    with pytest.raises(ValueError) as exc:
+    with pytest.raises(RuntimeError) as exc:
         ceh.open_files(str(empty_file))
     assert "Clarity extract file is empty" in str(exc.value)
 
@@ -264,25 +264,36 @@ class TestRCodeMatching:
     """Test R code matching in filenames."""
     @pytest.fixture
     def example_df(self):
-        return pd.read_csv(
-            "tests/test_data/clarity_extract_examples/test_all_reports_df.csv"
+        csv_path = (
+            Path(__file__).parent
+            / "test_data"
+            / "clarity_extract_examples"
+            / "test_all_reports_df.csv"
         )
+        return pd.read_csv(csv_path)
 
     @pytest.fixture
     def example_df_conflicting_r_codes(self):
-        return pd.read_csv(
-            "tests/test_data/clarity_extract_examples/test_all_reports_df_conflicting_r_codes.csv"
+        csv_path = (
+            Path(__file__).parent
+            / "test_data"
+            / "clarity_extract_examples"
+            / "test_all_reports_df_conflicting_r_codes.csv"
         )
+        return pd.read_csv(csv_path)
 
     @pytest.fixture
     def example_df_lowercase_r_codes(self):
-        return pd.read_csv(
-            "tests/test_data/clarity_extract_examples/test_all_reports_df_lowercase.csv"
+        csv_path = (
+            Path(__file__).parent
+            / "test_data"
+            / "clarity_extract_examples"
+            / "test_all_reports_df_lowercase.csv"
         )
+        return pd.read_csv(csv_path)
 
     def test_exact_match(self, example_df):
         row = example_df.iloc[1]
-        print(row)
         assert ceh.is_report_code_in_list(row) is True
 
     def test_no_match(self, example_df_conflicting_r_codes):

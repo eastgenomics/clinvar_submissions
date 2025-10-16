@@ -332,7 +332,7 @@ def extract_assay_from_filename(filename):
     str or None
         The extracted assay type (CEN or WES) or None if not found.
     """
-    if pd.isna(filename):
+    if filename is None or pd.isna(filename):
         return None
     match = re.search(r"(CEN|WES)", filename)
     return match.group(1) if match else None
@@ -351,7 +351,7 @@ def filtering_reports(report_df):
     Outputs:
         filtered_df (pd.DataFrame): Filtered DataFrame excluding rows with '_CNV_' or '_mosaic_' in 'file_name'.
     """
-    if report_df.empty or report_df is None:
+    if report_df is None or report_df.empty:
         print("Report DataFrame is empty or None. Skipping filtering.")
         return report_df
 
