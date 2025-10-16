@@ -73,7 +73,7 @@ def test_create_path_cen():
         "002_251010_A01303_0320_BACWV9DRX7_37_CEN",
     )
     expected = Path(
-        "/mnt/clingen/CEN/Run folders/251010_A01303_0320_BACWV9DRX7/file.xlsx"
+        "/mnt/clingen/CEN/Run folders/251010_A01303_0320_BACWV9DRX7_CEN/file.xlsx"
     )
     assert isinstance(path, Path)
     assert path == expected
@@ -87,7 +87,7 @@ def test_create_path_wes():
         "WES",
         "002_251010_A01303_0120_AHCWV8DRX7_38_TWE",
     )
-    expected = Path("/mnt/clingen/WES/251010_A01303_0120_AHCWV8DRX7/file.xlsx")
+    expected = Path("/mnt/clingen/WES/251010_A01303_0120_AHCWV8DRX7_TWE/file.xlsx")
     assert isinstance(path, Path)
     assert path == expected
 

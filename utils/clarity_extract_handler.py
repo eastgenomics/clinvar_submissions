@@ -27,10 +27,12 @@ def open_files(clarity):
     """
     try:
         clarity_df = pd.read_csv(clarity, delimiter=",")
-    except pd.errors.EmptyDataError:
-        raise ValueError(f"Clarity extract file is empty: {clarity}")
+    except pd.errors.EmptyDataError as e:
+        raise RuntimeError(f"Clarity extract file is empty: {clarity}") from e
+    except (FileNotFoundError, PermissionError, pd.errors.ParserError) as e:
+        raise RuntimeError(f"Error reading clarity extract: {clarity}") from e
     except Exception as e:
-        raise Exception(f"Error reading clarity extract: {e}")
+        raise RuntimeError(f"Error reading clarity extract: {e}") from e
 
     return clarity_df
 
@@ -115,7 +117,7 @@ def query_reports_for_project(project_id, sample_ids):
     return records
 
 
-def fetch_all_reports(df, assays, chunk_size=100, max_workers=64):
+def fetch_all_reports(df, assays, chunk_size=100, max_workers=16):
     """
     Fetch all reports for the given DataFrame of sample IDs.
     This function retrieves project IDs matching specific name patterns,
@@ -295,9 +297,9 @@ def is_report_code_in_list(row) -> bool:
         try:
             # Use ast.literal_eval instead of json.loads for Python literal evaluation
             r_codes_list = ast.literal_eval(r_codes)
-        except (ValueError, SyntaxError):
+        except (ValueError, SyntaxError) as e:
             # If parsing fails, assume it's not a valid list
-            return False
+            raise ValueError(f"Invalid R_codes format: {r_codes}") from e
     elif isinstance(r_codes, list):
         r_codes_list = r_codes
     else:
