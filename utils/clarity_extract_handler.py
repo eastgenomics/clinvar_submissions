@@ -297,7 +297,7 @@ def is_report_code_in_list(row) -> bool:
     elif isinstance(r_codes, list):
         r_codes_list = r_codes
     else:
-        return False
+        raise ValueError(f"Unexpected type for R_codes: {type(r_codes)}")
 
     # Handle empty list
     if not r_codes_list:
