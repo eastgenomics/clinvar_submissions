@@ -306,7 +306,7 @@ def is_report_code_in_list(row) -> bool:
     # Normalize and compare
     target = re.sub(r"\.\d+", "", str(report_code))
     normalized_codes = [
-        re.sub(r"\.\d+", "", str(c)) for c in r_codes_list if not pd.isna(c)
+        re.sub(r"\.\d+", "", str(c)) for c in r_codes_list
     ]
 
     return target in normalized_codes
