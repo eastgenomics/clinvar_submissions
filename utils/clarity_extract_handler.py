@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pandas import DataFrame
 from pathlib import Path
 import os
+import ast
 
 
 def open_files(clarity):
@@ -274,14 +275,41 @@ def is_report_code_in_list(row) -> bool:
     Outputs:
         bool: True if report_r_code is in R_codes, False otherwise
     """
-    r_codes = row["R_codes"]
-    report_code = row["report_r_code"]
-    if pd.isna(report_code) or pd.isna(r_codes):
+    r_codes = row.get("R_codes", [])
+    report_code = row.get("report_r_code")
+
+    # Check if report_code is missing
+    if pd.isna(report_code):
         return False
-    # Remove decimal from report_code for comparison
-    report_code_no_decimal = re.sub(r"\.\d+", "", report_code)
-    bool = report_code_no_decimal in [re.sub(r"\.\d+", "", code) for code in r_codes]
-    return bool
+
+    # Handle different types of r_codes input
+    if pd.isna(r_codes) or r_codes == [] or r_codes == "[]":
+        return False
+
+    # Convert string representation of list to actual list
+    if isinstance(r_codes, str):
+        try:
+            # Use ast.literal_eval instead of json.loads for Python literal evaluation
+            r_codes_list = ast.literal_eval(r_codes)
+        except (ValueError, SyntaxError):
+            # If parsing fails, assume it's not a valid list
+            return False
+    elif isinstance(r_codes, list):
+        r_codes_list = r_codes
+    else:
+        return False
+
+    # Handle empty list
+    if not r_codes_list:
+        return False
+
+    # Normalize and compare
+    target = re.sub(r"\.\d+", "", str(report_code))
+    normalized_codes = [
+        re.sub(r"\.\d+", "", str(c)) for c in r_codes_list if not pd.isna(c)
+    ]
+
+    return target in normalized_codes
 
 
 def extract_assay_from_filename(filename):

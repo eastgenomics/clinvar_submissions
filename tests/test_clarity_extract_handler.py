@@ -215,3 +215,93 @@ def test_find_file_name_single_file(monkeypatch):
         lambda **kwargs: [{"describe": {"name": "SP-24010R0031-CEN_R208.1_1.xlsx"}}],
     )
     assert ceh.find_file_name("SP-24010R0031*") == "SP-24010R0031-CEN_R208.1_1.xlsx"
+
+
+class TestExtractAssayFromFilename:
+    """Test extracting assay from filename."""
+
+    def test_valid_cen(self):
+        assert ceh.extract_assay_from_filename("file_CEN_123.xlsx") == "CEN"
+
+    def test_valid_wes(self):
+        assert ceh.extract_assay_from_filename("file_WES_123.xlsx") == "WES"
+
+    def test_no_assay(self):
+        assert ceh.extract_assay_from_filename("file_123.xlsx") is None
+
+    def test_unknown_assay(self):
+        assert ceh.extract_assay_from_filename("file_UNKNOWN_123.xlsx") is None
+
+
+class TestFindFileName:
+    """Test finding file names in a project."""
+
+    def test_no_files(self, monkeypatch):
+        monkeypatch.setattr(ceh.dxpy, "find_data_objects", lambda **kwargs: [])
+        assert ceh.find_file_name("sample*") is None
+
+    def test_multiple_files(self, monkeypatch):
+        monkeypatch.setattr(
+            ceh.dxpy,
+            "find_data_objects",
+            lambda **kwargs: [
+                {"describe": {"name": "sample1.xlsx"}},
+                {"describe": {"name": "sample2.xlsx"}},
+            ],
+        )
+        assert ceh.find_file_name("sample*") is None
+
+    def test_single_file(self, monkeypatch):
+        monkeypatch.setattr(
+            ceh.dxpy,
+            "find_data_objects",
+            lambda **kwargs: [{"describe": {"name": "sample1.xlsx"}}],
+        )
+        assert ceh.find_file_name("sample*") == "sample1.xlsx"
+
+
+class TestRCodeMatching:
+    """Test R code matching in filenames."""
+    @pytest.fixture
+    def example_df(self):
+        return pd.read_csv(
+            "tests/test_data/clarity_extract_examples/test_all_reports_df.csv"
+        )
+
+    @pytest.fixture
+    def example_df_conflicting_r_codes(self):
+        return pd.read_csv(
+            "tests/test_data/clarity_extract_examples/test_all_reports_df_conflicting_r_codes.csv"
+        )
+
+    @pytest.fixture
+    def example_df_lowercase_r_codes(self):
+        return pd.read_csv(
+            "tests/test_data/clarity_extract_examples/test_all_reports_df_lowercase.csv"
+        )
+
+    def test_exact_match(self, example_df):
+        row = example_df.iloc[1]
+        print(row)
+        assert ceh.is_report_code_in_list(row) is True
+
+    def test_no_match(self, example_df_conflicting_r_codes):
+        row = example_df_conflicting_r_codes.iloc[1]
+        assert ceh.is_report_code_in_list(row) is False
+
+    def test_report_code_none(self, example_df):
+        row = example_df.iloc[2]
+        assert ceh.is_report_code_in_list(row) is False
+
+    def test_empty_r_codes_list_no_report_r_code(self, example_df):
+        row = example_df.iloc[3]
+        assert ceh.is_report_code_in_list(row) is False
+
+    def test_empty_r_codes_list(self, example_df):
+        row = example_df.iloc[4]
+        assert ceh.is_report_code_in_list(row) is False
+
+    def test_case_sensitive(self, example_df_lowercase_r_codes):
+        # function is case-sensitive; lower-case report code should not match upper-case list
+        row = example_df_lowercase_r_codes.iloc[0]
+        assert ceh.is_report_code_in_list(row) is False
