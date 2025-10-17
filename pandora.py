@@ -393,6 +393,7 @@ def main():
                     args.print_submission_json,
                     args.no_retry,
                 )
+                print(f"Submission response: {response.status_code}, {response.text}")
                 if args.clinvar_testing is False:
                     db.add_submission_id_to_db(
                         response.json(), engine, df["local_id"].values
