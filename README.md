@@ -13,7 +13,8 @@ This script searches a given folder for Excel variant workbooks that have not pr
     ```JSON
     {
         "cuh": "1234567890",
-        "nuh": "0987654321"
+        "nuh": "0987654321",
+        "dnanexus": "ASDFGHJKLQWERTYUIOP"
     }
     ```
 * `--db_credentials`: JSON file containing AWS database credentials. Should be in the format:
