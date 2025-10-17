@@ -10,29 +10,51 @@ import json
 import uuid
 import time
 from typing import Optional
+from pathlib import Path
+import dxpy
 
+def dx_login(dnanexus_token: str) -> None:
+    """
+    Function to check DNANexus auth token.
+    Inputs:
+        dnanexus_token (str): DNANexus auth token
+    Outputs:
+        None
+    Side effects:
+        Sets DNANexus security context to use the provided token
+    """
+    DX_SECURITY_CONTEXT = {
+        "auth_token_type": "Bearer",
+        "auth_token": dnanexus_token,
+    }
+
+    # set token to env
+    dxpy.set_security_context(DX_SECURITY_CONTEXT)
+
+    try:
+        dxpy.api.system_whoami()
+        print("DNANexus authentication successful.")
+    except Exception as e:
+        print("DNANexus authentication failed.")
+        print(e)
+    return
 
 def get_folder_of_input_file(filename: str) -> str:
-    '''
+    """
     Get the folder of input file
     Inputs:
         filename (str): filename
     Outputs:
         folder (str): folder name
-    '''
+    """
     folder = os.path.basename(os.path.normpath(os.path.dirname(filename)))
     return folder
 
 
 def get_workbook_data(
-    workbook,
-    config: dict,
-    filename: str,
-    file: str,
-    engine,
-    organisation: str
-    ) -> pd.DataFrame:
-    '''
+    workbook, config: dict, filename: str, file: str, engine, organisation: str
+) -> pd.DataFrame:
+    """
     Function that runs functions to extract data from each sheet in the
     workbook and merges it together into one dataframe
     Inputs:
@@ -44,12 +66,10 @@ def get_workbook_data(
         organisation (str): string of organisation name, either CUH or NUH
     Outputs:
         df_final (pd.DataFrame): data frame extracted from workbook
-    '''
+    """
     errors = []
     # get data from summary sheet, included variants sheet and interpret sheets
-    df_summary, error = get_summary_fields(
-        workbook, config, organisation
-        )
+    df_summary, error = get_summary_fields(workbook, config, organisation)
     errors.append(error)
     df_included = get_included_fields(workbook, filename)
     df_interpret, error = get_report_fields(workbook, config, df_included)
@@ -70,15 +90,13 @@ def get_workbook_data(
 
     df_final = pd.merge(df_merged, df_interpret, on="hgvsc", how="left")
 
-    df_final["germline_classification"] = df_final[
-        "germline_classification"
-        ].replace(
-            {
-                "Likely Pathogenic": "Likely pathogenic",
-                "Uncertain Significance": "Uncertain significance",
-                "Likely Benign": "Likely benign",
-            }
-        )
+    df_final["germline_classification"] = df_final["germline_classification"].replace(
+        {
+            "Likely Pathogenic": "Likely pathogenic",
+            "Uncertain Significance": "Uncertain significance",
+            "Likely Benign": "Likely benign",
+        }
+    )
 
     error = check_interpreted_col(df_final)
     errors.append(error)
@@ -94,8 +112,8 @@ def get_workbook_data(
 
 def get_summary_fields(
     workbook, config: dict, organisation: str
-    ) -> tuple[pd.DataFrame, str]:
-    '''
+) -> tuple[pd.DataFrame, str]:
+    """
     Extract data from summary sheet of variant workbook
     Inputs:
         workbook (openpyxl wb object): workbook being used
@@ -105,7 +123,7 @@ def get_summary_fields(
         df_summary (pd.DataFrame): data frame extracted from workbook summary
         sheet
         err_msg (str): error message
-    '''
+    """
     error_msg = None
     sample_id = workbook["summary"]["B1"].value
 
@@ -153,18 +171,18 @@ def get_summary_fields(
     df_summary = pd.DataFrame([d])
 
     # If no date last evaluated, use today's date
-    df_summary['date_last_evaluated'] = df_summary[
-        'date_last_evaluated'
-    ].fillna(str(date.today()))
+    df_summary["date_last_evaluated"] = df_summary["date_last_evaluated"].fillna(
+        str(date.today())
+    )
 
     # Catch if workbook has value for date last evaluated which is not datetime
     # compatible
     # Can test with first item in series as all rows have the same date value
     try:
-        _ = bool(date_parser.parse(str(df_summary['date_last_evaluated'][0])))
+        _ = bool(date_parser.parse(str(df_summary["date_last_evaluated"][0])))
     except date_parser._parser.ParserError:
         error_msg = (
-            f"Value for date last evaluated \"{date_evaluated}\" is not "
+            f'Value for date last evaluated "{date_evaluated}" is not '
             "compatible with datetime conversion"
         )
         return df_summary, error_msg
@@ -192,19 +210,19 @@ def get_summary_fields(
 
 
 def get_included_fields(workbook, filename: str) -> pd.DataFrame:
-    '''
+    """
     Extract data from included sheet of variant workbook
     Inputs:
         workbook (openpyxl wb object): workbook being used
         filename (str): string of workbook name
     Outputs:
         df_included (pd.DataFrame): data frame extracted from included sheet
-    '''
+    """
     num_variants = workbook["summary"]["C38"].value
     df = pd.read_excel(
         filename,
         sheet_name="included",
-        usecols= [
+        usecols=[
             "CHROM",
             "POS",
             "REF",
@@ -231,7 +249,7 @@ def get_included_fields(workbook, filename: str) -> pd.DataFrame:
             "HGVSc": "hgvsc",
             "Interpreted": "interpreted",
             "Consequence": "consequence",
-            "Comment": "classification_comment"
+            "Comment": "classification_comment",
         },
         inplace=True,
     )
@@ -246,11 +264,9 @@ def get_included_fields(workbook, filename: str) -> pd.DataFrame:
 
 
 def get_report_fields(
-    workbook,
-    config: dict,
-    df_included: pd.DataFrame
-    ) -> tuple[pd.DataFrame, str]:
-    '''
+    workbook, config: dict, df_included: pd.DataFrame
+) -> tuple[pd.DataFrame, str]:
+    """
     Extract data from interpret sheet(s) of variant workbook
     Inputs:
         workbook (openpyxl wb object): workbook being used
@@ -260,15 +276,13 @@ def get_report_fields(
         df_included (pd.DataFrame): dataframe extracted from interpret sheet(s)
         err_msg (str): error message
 
-    '''
+    """
     field_cells = config.get("field_cells")
 
     col_name = [i[0] for i in field_cells]
     df_report = pd.DataFrame(columns=col_name)
     report_sheets = [
-        idx
-        for idx in workbook.sheetnames
-        if idx.lower().startswith("interpret")
+        idx for idx in workbook.sheetnames if idx.lower().startswith("interpret")
     ]
 
     for idx, sheet in enumerate(report_sheets):
@@ -291,7 +305,7 @@ def get_report_fields(
 
 
 def make_acgs_criteria_null_if_not_applied(df, acgs_criteria: list) -> pd.DataFrame:
-    '''
+    """
     The workbook has a value "NA" for ACGS criteria that was not applied. This
     function finds any variant row that had "NA" for a criteria and changes it
     to null. If an ACGS criteria is null, the evidence column for that column
@@ -306,13 +320,19 @@ def make_acgs_criteria_null_if_not_applied(df, acgs_criteria: list) -> pd.DataFr
         df (pd.Dataframe): the same dataframe, now with null instead of "NA"
         for criteria that were not applied, and a null value for evidence for
         all criteria not applied.
-    '''
-    for index, row, in df.iterrows():
+    """
+    for (
+        index,
+        row,
+    ) in df.iterrows():
         for criterion in acgs_criteria:
             if row[criterion] == "NA":
                 df.loc[index, criterion] = np.nan
 
-    for index, row, in df.iterrows():
+    for (
+        index,
+        row,
+    ) in df.iterrows():
         for criterion in acgs_criteria:
             if pd.isna(row[criterion]):
                 df.loc[index, criterion + "_evidence"] = np.nan
@@ -320,8 +340,10 @@ def make_acgs_criteria_null_if_not_applied(df, acgs_criteria: list) -> pd.DataFr
     return df
 
 
-def add_comment_on_classification(df, acgs_criteria: list, config: dict) -> pd.DataFrame:
-    '''
+def add_comment_on_classification(
+    df, acgs_criteria: list, config: dict
+) -> pd.DataFrame:
+    """
     This function should take in a df with a column for each ACGS criteria with
     the values in that column being the strength of the criteria and return the
     same df but with a value in the comment_on_classification column that
@@ -344,11 +366,14 @@ def add_comment_on_classification(df, acgs_criteria: list, config: dict) -> pd.D
         df (pd.Dataframe): the same dataframe, now with a value in the
         comment_on_classification column which summarises all the ACGS criteria
         applied for the variants
-    '''
+    """
     matched_strength = config.get("matched_strength")
     df["comment_on_classification"] = ""
 
-    for index, row, in df.iterrows():
+    for (
+        index,
+        row,
+    ) in df.iterrows():
         acgs = {}
         for criterion in acgs_criteria:
             if pd.notna(row[criterion]):
@@ -356,17 +381,19 @@ def add_comment_on_classification(df, acgs_criteria: list, config: dict) -> pd.D
                 if matched_strength[criterion.upper()[:-1]] == row[criterion]:
                     acgs[criterion.upper()] = ""
 
-        comment = ','.join([
-            f"{criterion}_{strength}"if strength != ""
-            else criterion for criterion, strength in acgs.items()
-        ])
+        comment = ",".join(
+            [
+                f"{criterion}_{strength}" if strength != "" else criterion
+                for criterion, strength in acgs.items()
+            ]
+        )
         df.loc[index, "comment_on_classification"] = comment
 
     return df
 
 
 def select_api_url(clinvar_testing: bool, config: dict) -> Optional[str]:
-    '''
+    """
     Select which API URL to use depending on if this is a test run or if
     variants are planned to be submitted to ClinVar
     Inputs:
@@ -374,17 +401,13 @@ def select_api_url(clinvar_testing: bool, config: dict) -> Optional[str]:
         config (dict): config variable containing URLS for API
     Outputs:
         api_url: clinvar api URL, either for the test API or the live API
-    '''
+    """
     if clinvar_testing is True:
         api_url = config.get("test_api_endpoint")
-        print(
-            f"Running in test mode, using {api_url}"
-        )
+        print(f"Running in test mode, using {api_url}")
     elif clinvar_testing is False:
         api_url = config.get("live_api_endpoint")
-        print(
-            f"Running in live mode, using {api_url}"
-        )
+        print(f"Running in live mode, using {api_url}")
     else:
         raise ValueError(
             f"Value for testing {clinvar_testing} neither True nor False."
@@ -394,10 +417,9 @@ def select_api_url(clinvar_testing: bool, config: dict) -> Optional[str]:
 
 
 def check_interpret_table(
-    df_interpret: pd.DataFrame,
-    df_included: pd.DataFrame,
-    config: dict) -> Optional[str]:
-    '''
+    df_interpret: pd.DataFrame, df_included: pd.DataFrame, config: dict
+) -> Optional[str]:
+    """
     Check if ACMG classification and HGVSc are correctly
     filled in in the interpret table(s)
     Inputs:
@@ -406,15 +428,15 @@ def check_interpret_table(
         config (dict): config variable
     Outputs:
       error_msg (str): error message
-    '''
+    """
     error_msg_list = []
     strength_dropdown = config.get("strength_dropdown")
     BA1_dropdown = config.get("BA1_dropdown")
     for row in range(df_interpret.shape[0]):
         try:
-            assert (
-                pd.notna(df_interpret.loc[row, "germline_classification"])
-            ), "empty ACMG classification in interpret table"
+            assert pd.notna(df_interpret.loc[row, "germline_classification"]), (
+                "empty ACMG classification in interpret table"
+            )
             assert df_interpret.loc[row, "germline_classification"] in [
                 "Pathogenic",
                 "Likely Pathogenic",
@@ -422,24 +444,23 @@ def check_interpret_table(
                 "Likely Benign",
                 "Benign",
             ], "wrong ACMG classification in interpret table"
-            assert (
-                pd.notna(df_interpret.loc[row, "hgvsc"])
-            ), "empty HGVSc in interpret table"
+            assert pd.notna(df_interpret.loc[row, "hgvsc"]), (
+                "empty HGVSc in interpret table"
+            )
             assert df_interpret.loc[row, "hgvsc"] in list(df_included["hgvsc"]), (
-                "HGVSc in interpret table does not match with that in "
-                "included sheet"
+                "HGVSc in interpret table does not match with that in included sheet"
             )
             acgs_criteria = config.get("acgs_criteria")
             for criteria in acgs_criteria:
                 if pd.notna(df_interpret.loc[row, criteria]):
-                    assert (
-                        df_interpret.loc[row, criteria] in strength_dropdown
-                    ), f"Wrong strength in {criteria}"
+                    assert df_interpret.loc[row, criteria] in strength_dropdown, (
+                        f"Wrong strength in {criteria}"
+                    )
 
             if pd.notna(df_interpret.loc[row, "ba1"]):
-                assert (
-                    df_interpret.loc[row, "ba1"] in BA1_dropdown
-                ), "Wrong strength in BA1"
+                assert df_interpret.loc[row, "ba1"] in BA1_dropdown, (
+                    "Wrong strength in BA1"
+                )
 
         except AssertionError as msg:
             error_msg_list.append(str(msg))
@@ -453,32 +474,28 @@ def check_interpret_table(
 
 
 def checking_sheets(workbook) -> Optional[str]:
-    '''
+    """
     Check if extra row(s)/col(s) are added in the sheets
     Inputs:
         workbook (openpyxl wb object): object of query workbook with variants
     Outputs:
         error_msg (str): error message
-    '''
+    """
     summary = workbook["summary"]
     reports = [
-        idx
-        for idx in workbook.sheetnames
-        if idx.lower().startswith("interpret")
+        idx for idx in workbook.sheetnames if idx.lower().startswith("interpret")
     ]
     try:
-        assert (
-            summary["G21"].value == "Date"
-        ), "extra col(s) added or change(s) done in summary sheet"
+        assert summary["G21"].value == "Date", (
+            "extra col(s) added or change(s) done in summary sheet"
+        )
         for sheet in reports:
             report = workbook[sheet]
             assert report["B26"].value == "FINAL ACMG CLASSIFICATION", (
-                "extra row(s) or col(s) added or change(s) done in "
-                "interpret sheet"
+                "extra row(s) or col(s) added or change(s) done in interpret sheet"
             )
             assert report["L8"].value == "B_POINTS", (
-                "extra row(s) or col(s) added or change(s) done in "
-                "interpret sheet"
+                "extra row(s) or col(s) added or change(s) done in interpret sheet"
             )
         error_msg = None
     except AssertionError as msg:
@@ -488,17 +505,17 @@ def checking_sheets(workbook) -> Optional[str]:
 
 
 def check_interpreted_col(df) -> Optional[str]:
-    '''
+    """
     Check if interpreted col in included sheet is correctly filled in
     Inputs:
         df (pd.DataFrame): merged dataframe with data from workbook
         error_msg (str): error message
-    '''
+    """
     error_msg_list = []
     yes_df = df[df["interpreted"] == "yes"]
     no_df = df[df["interpreted"] == "no"]
 
-    if not df["interpreted"].isin(['yes', 'no']).all():
+    if not df["interpreted"].isin(["yes", "no"]).all():
         error_msg_list.append(
             "Values in interpreted column are not all either 'yes' or 'no'"
         )
@@ -526,31 +543,23 @@ def check_interpreted_col(df) -> Optional[str]:
 
 
 def check_sample_name(
-    instrumentID: str,
-    sample_ID: str,
-    batchID: str,
-    testcode: str,
-    probesetID: str
-    ) -> Optional[str]:
-    '''
+    instrumentID: str, sample_ID: str, batchID: str, testcode: str, probesetID: str
+) -> Optional[str]:
+    """
     Checking that individual parts of sample name have expected naming format
     Inputs:
       str values for instrumentID, sample_ID, batchID, testcode,
       probesetID
     Outputs:
         error_msg (str): error message
-    '''
+    """
     try:
-        assert re.match(
-            r"^\d{9}$", instrumentID
-        ), "Unusual name for instrumentID"
+        assert re.match(r"^\d{9}$", instrumentID), "Unusual name for instrumentID"
         assert re.match(r"^\d{5}[A-Z]\d{4}$", sample_ID), "Unusual sampleID"
         assert re.match(r"^\d{2}[A-Z]{5}\d{1,}$", batchID), "Unusual batchID"
         assert re.match(r"^\d{4}$", testcode), "Unusual testcode"
         assert 0 < len(probesetID) < 20, "probesetID is too long/short"
-        assert (
-            probesetID.isalnum() and not probesetID.isalpha()
-        ), "Unusual probesetID"
+        assert probesetID.isalnum() and not probesetID.isalpha(), "Unusual probesetID"
         error_msg = None
     except AssertionError as msg:
         error_msg = str(msg)
@@ -559,11 +568,9 @@ def check_sample_name(
 
 
 def submission_status_check(
-    submission_id: str,
-    headers: dict,
-    api_url: str
-    ) -> tuple[str, dict]:
-    '''
+    submission_id: str, headers: dict, api_url: str
+) -> tuple[str, dict]:
+    """
     Queries ClinVar API about a submission ID to obtain more details about its
     submission record.
     Inputs:
@@ -573,7 +580,7 @@ def submission_status_check(
     Outputs:
         status (str): the submission status
         status_response (dict): the API response
-    '''
+    """
 
     url = os.path.join(api_url, submission_id, "actions")
     response = requests.get(url, headers=headers)
@@ -583,8 +590,9 @@ def submission_status_check(
     print(response_content)
     if response.status_code not in [200]:
         raise RuntimeError(
-            "Status check failed:\n" + str(headers) + "\n" + url
-            + "\n" + response_content
+            "Status check failed:\n"
+            f"{url}\n"
+            f"{response_content}"
         )
 
     status_response = json.loads(response_content)
@@ -598,10 +606,7 @@ def submission_status_check(
     if len(responses) == 0:
         print("Status 'responses' field had no items, check back later")
     else:
-        print(
-            "Status response had a response, attempting to "
-            "retrieve any files listed"
-        )
+        print("Status response had a response, attempting to retrieve any files listed")
         try:
             f_url = responses[0]["files"][0]["url"]
         except (KeyError, IndexError) as error:
@@ -618,10 +623,53 @@ def submission_status_check(
             f_response_content = f_response.content.decode("UTF-8")
             if f_response.status_code not in [200]:
                 raise RuntimeError(
-                    "Status check summary file fetch failed:"
-                    f"{f_response_content}"
+                    f"Status check summary file fetch failed:{f_response_content}"
                 )
             file_content = json.loads(f_response_content)
             status_response = file_content
 
     return status, status_response
+
+
+def check_file_exists(path):
+    """
+    Check if a file exists at the given path.
+    Inputs:
+        path (str): The file path to check.
+    Outputs:
+        bool: True if the file exists, False otherwise.
+    """
+    if pd.isna(path):
+        return False
+
+    path = Path(path)  # ensure it’s a Path object
+
+    return path.exists()
+
+
+def check_files_exist_and_exclude(samples_df: pd.DataFrame, path_column: str) -> pd.DataFrame:
+    """
+    Check if files exist at the paths specified in the given column of the DataFrame.
+    Exclude rows where the file does not exist.
+    Inputs:
+        samples_df (pd.DataFrame): The DataFrame containing file paths.
+        path_column (str): The name of the column containing file paths.
+    Outputs:
+        df_filtered (pd.DataFrame):
+            A DataFrame with rows excluded where the file does not exist.
+        missing_files_df (pd.DataFrame):
+            A DataFrame of rows where the file does not exist in clingen.
+    """
+    # Check files exist mv this into another function to make DRYer
+    print("Checking files exist...")
+    if samples_df.empty:
+        print("No samples to check.")
+        return samples_df, pd.DataFrame()
+    samples_df["file_exists"] = samples_df[path_column].apply(check_file_exists)
+    missing_files_df = samples_df[~samples_df["file_exists"]]
+    print(f"Found {missing_files_df.shape[0]} missing files.")
+    if not missing_files_df.empty:
+        print(missing_files_df[["file_name", f"{path_column}"]])
+    samples_df = samples_df[samples_df["file_exists"]].copy()
+    df_filtered = samples_df.drop(columns=["file_exists"])
+    return df_filtered, missing_files_df
