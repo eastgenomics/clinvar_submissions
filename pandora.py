@@ -134,6 +134,7 @@ def output_inconsistent_files(
         missing_data_df (pd.DataFrame): dataframe of samples with missing data
         duplicate_data_df (pd.DataFrame): dataframe of samples with duplicate data
         timestamp (str): timestamp to append to filenames
+        output_dir (str): directory to output inconsistent files to
     Outputs:
         None
     Side effects:
@@ -167,7 +168,7 @@ def output_inconsistent_files(
         )
         duplicate_data_df.to_csv(path_to_duplicate, index=False)
     if missing_data_df.empty and duplicate_data_df.empty:
-        print("No inconsistent data found in clarity extract.")
+        print("No inconsistent data found.")
 
 
 def main():
