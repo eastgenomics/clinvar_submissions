@@ -120,7 +120,7 @@ def validate_output_dir(path_str: str) -> Path:
 
     path = Path(path_str).expanduser().resolve()
     path.mkdir(parents=True, exist_ok=True)
-    if not path.exists() or not path.is_dir():
+    if not path.is_dir():
         raise argparse.ArgumentTypeError(f"{path} is not a valid directory")
     return path
 
