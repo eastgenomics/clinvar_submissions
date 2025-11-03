@@ -278,7 +278,6 @@ class TestPreProcessClarityExtract:
 
         processed_df = ceh.preprocess_clarity_extract(example_df)
 
-        # Check that paths are correctly created
         expected_df = pd.DataFrame(
             {
                 "Beaker Procedure Name": ["RARE DISEASE NGS ANALYSIS"],
@@ -308,7 +307,6 @@ class TestPreProcessClarityExtract:
 
         processed_df = ceh.preprocess_clarity_extract(example_df)
 
-        # Check that paths are correctly created
         expected_df = pd.DataFrame(
             {
                 "Beaker Procedure Name": ["CEN NGS"] * 2,
@@ -338,7 +336,6 @@ class TestPreProcessClarityExtract:
 
         processed_df = ceh.preprocess_clarity_extract(example_df)
 
-        # Check that paths are correctly created
         expected_df = pd.DataFrame(
             {
                 "Beaker Procedure Name": pd.Series([], dtype="object"),

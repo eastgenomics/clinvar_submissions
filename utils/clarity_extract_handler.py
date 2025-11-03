@@ -142,10 +142,7 @@ def query_reports_for_project(project_id, sample_ids):
         )
         # If no files found, return empty records
         if not matching_files:
-            print(
-                f"No files found for project {project_id} with pattern"
-                f" {pattern}"
-            )
+            print(f"No files found for project {project_id} with pattern {pattern}")
             return records
         for file in matching_files:
             file_name = file["describe"]["name"]
@@ -195,8 +192,7 @@ def fetch_all_reports(df, assays, chunk_size=100, max_workers=16):
 
     # Chunk sample IDs to manage search load
     chunks = [
-        sample_ids[i : i + chunk_size]
-        for i in range(0, len(sample_ids), chunk_size)
+        sample_ids[i : i + chunk_size] for i in range(0, len(sample_ids), chunk_size)
     ]
 
     tasks = [
@@ -224,19 +220,13 @@ def fetch_all_reports(df, assays, chunk_size=100, max_workers=16):
 
     # Add project names to records
     for record in all_records:
-        record["project_name"] = project_dict.get(
-            record["project_id"], "Unknown"
-        )
+        record["project_name"] = project_dict.get(record["project_id"], "Unknown")
 
     # Create a DataFrame from the records
     records_df = pd.DataFrame(all_records)
     if records_df.empty:
         print("No records found for the given sample IDs.")
-        empty_cols = {
-            "file_name": pd.NA,
-            "project_id": pd.NA,
-            "project_name": pd.NA,
-        }
+        empty_cols = {"file_name": pd.NA, "project_id": pd.NA, "project_name": pd.NA}
         return df.copy().assign(**empty_cols)
 
     # Merge with the original df to retain additional columns
@@ -293,10 +283,7 @@ def create_path(filename, base_path, assay, run):
 
     # Return None if run_name extraction failed
     if run_name is None:
-        print(
-            f"Warning: Could not extract run_name from '{run}' for filename"
-            f" {filename}. Returning None."
-        )
+        print(f"Warning: Could not extract run_name from '{run}' for filename {filename}. Returning None.")
         return None
 
     # Build path depending on assay
@@ -310,8 +297,7 @@ def create_path(filename, base_path, assay, run):
         path = base_path / "WES" / run_folder / filename
     else:
         print(
-            f"Warning: Unknown assay '{assay}' for filename {filename}."
-            " Returning None."
+            f"Warning: Unknown assay '{assay}' for filename {filename}. Returning None."
         )
         return None
     return path
@@ -483,15 +469,11 @@ def preprocess_report_df(report_df, base_path):
         report_df (pd.DataFrame): Preprocessed DataFrame with additional columns.
     """
     # Extract assay from filename
-    report_df["Assay"] = report_df["file_name"].apply(
-        extract_assay_from_filename
-    )
+    report_df["Assay"] = report_df["file_name"].apply(extract_assay_from_filename)
 
     # Add the path to the processed reports
     report_df["path"] = report_df.apply(
-        lambda x: create_path(
-            x["file_name"], base_path, x["Assay"], x["project_name"]
-        ),
+        lambda x: create_path(x["file_name"], base_path, x["Assay"], x["project_name"]),
         axis=1,
     )
 
@@ -501,9 +483,7 @@ def preprocess_report_df(report_df, base_path):
         report_df["instrument_id"] + "-" + report_df["sample_id"]
     )
     # create report_r_code column from file_name
-    report_df["report_r_code"] = report_df["file_name"].str.extract(
-        r"_(R\d+\.\d+)_"
-    )[0]
+    report_df["report_r_code"] = report_df["file_name"].str.extract(r"_(R\d+\.\d+)_")[0]
 
     return report_df
 
@@ -555,8 +535,7 @@ def handle_clarity_extract(
     # Add check for empty DataFrame
     if report_df.empty:
         print(
-            "No reports found after fetching from DNAnexus. Returning empty"
-            " DataFrames."
+            "No reports found after fetching from DNAnexus. Returning empty DataFrames."
         )
         empty_cols = {
             "file_name": pd.NA,
