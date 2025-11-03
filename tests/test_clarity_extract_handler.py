@@ -276,7 +276,7 @@ class TestPreProcessClarityExtract:
             }
         )
 
-        processed_df = ceh.preprocess_clarity_extract(example_df)
+        processed_df, clarity_issues_df = ceh.preprocess_clarity_extract(example_df)
 
         expected_df = pd.DataFrame(
             {
@@ -296,6 +296,18 @@ class TestPreProcessClarityExtract:
 
         pd.testing.assert_frame_equal(processed_df, expected_df)
 
+        expected_issues_df = pd.DataFrame(
+            {
+                "Beaker Procedure Name": pd.Series([], dtype="object"),
+                "Specimen Identifier": pd.Series([], dtype="object"),
+                "Test Directory Test Code": pd.Series([], dtype="object"),
+                "sample_id": pd.Series([], dtype="object"),
+                "R_codes": pd.Series([], dtype="object"),
+            }
+        )
+
+        pd.testing.assert_frame_equal(clarity_issues_df, expected_issues_df)
+
     def test_preprocess_clarity_df_single_R_code(self):
         example_df = pd.DataFrame(
             {
@@ -305,7 +317,7 @@ class TestPreProcessClarityExtract:
             }
         )
 
-        processed_df = ceh.preprocess_clarity_extract(example_df)
+        processed_df, clarity_issues_df = ceh.preprocess_clarity_extract(example_df)
 
         expected_df = pd.DataFrame(
             {
@@ -325,6 +337,18 @@ class TestPreProcessClarityExtract:
 
         pd.testing.assert_frame_equal(processed_df, expected_df)
 
+        expected_issues_df = pd.DataFrame(
+            {
+                "Beaker Procedure Name": pd.Series([], dtype="object"),
+                "Specimen Identifier": pd.Series([], dtype="object"),
+                "Test Directory Test Code": pd.Series([], dtype="object"),
+                "sample_id": pd.Series([], dtype="object"),
+                "R_codes": pd.Series([], dtype="object"),
+            }
+        )
+
+        pd.testing.assert_frame_equal(clarity_issues_df, expected_issues_df)
+
     def test_preprocess_clarity_df_no_R_code(self):
         example_df = pd.DataFrame(
             {
@@ -334,7 +358,7 @@ class TestPreProcessClarityExtract:
             }
         )
 
-        processed_df = ceh.preprocess_clarity_extract(example_df)
+        processed_df, clarity_issues_df = ceh.preprocess_clarity_extract(example_df)
 
         expected_df = pd.DataFrame(
             {
@@ -347,6 +371,52 @@ class TestPreProcessClarityExtract:
         )
 
         pd.testing.assert_frame_equal(processed_df, expected_df)
+
+        expected_issues_df = pd.DataFrame(
+            {
+                "Beaker Procedure Name": ["WES NGS"] * 2,
+                "Specimen Identifier": ["SP-250128R0042", "SP-250129R0043"],
+                "Test Directory Test Code": [pd.NA, pd.NA],
+                "sample_id": ["250128R0042", "250129R0043"],
+                "R_codes": [[], []],
+            }
+        )
+        pd.testing.assert_frame_equal(clarity_issues_df, expected_issues_df)
+
+    def test_preprocess_clarity_df_multiple_R_codes_and_no_R_code(self):
+        example_df = pd.DataFrame(
+            {
+                "Beaker Procedure Name": ["WES NGS"] * 2,
+                "Specimen Identifier": ["SP-250128R0042", "SP-250129R0043"],
+                "Test Directory Test Code": ["R208.1|R209.1", pd.NA],
+            }
+        )
+
+        processed_df, clarity_issues_df = ceh.preprocess_clarity_extract(example_df)
+
+        expected_df = pd.DataFrame(
+            {
+                "Beaker Procedure Name": pd.Series([], dtype="object"),
+                "Specimen Identifier": pd.Series([], dtype="object"),
+                "Test Directory Test Code": pd.Series([], dtype="object"),
+                "sample_id": pd.Series([], dtype="object"),
+                "R_codes": pd.Series([], dtype="object"),
+            }
+        )
+
+        pd.testing.assert_frame_equal(processed_df, expected_df)
+
+        expected_issues_df = pd.DataFrame(
+            {
+                "Beaker Procedure Name": ["WES NGS"] * 2,
+                "Specimen Identifier": ["SP-250129R0043", "SP-250128R0042"],
+                "Test Directory Test Code": [pd.NA, "R208.1|R209.1"],
+                "sample_id": ["250129R0043", "250128R0042"],
+                "R_codes": [[], ["R208", "R209"]],
+            }
+        )
+
+        pd.testing.assert_frame_equal(clarity_issues_df, expected_issues_df)
 
 
 class TestPreprocessReportDf:

@@ -46,10 +46,13 @@ def preprocess_clarity_extract(clarity_df):
     Outputs:
         clarity_df (pd.DataFrame): Preprocessed DataFrame with additional
         sample_id and R_codes columns.
+        clarity_issues_df (pd.DataFrame): DataFrame containing samples with missing or multiple R codes.
     """
     # Split out sample ID to remove "SP-" prefix
     clarity_df["sample_id"] = (
-        clarity_df["Specimen Identifier"].str.split("-").str[1]
+        clarity_df["Specimen Identifier"]
+        .str.split("-")
+        .apply(lambda parts: parts[1] if len(parts) > 1 else None)
     )
 
     # Split unique base R codes into a list
@@ -66,19 +69,18 @@ def preprocess_clarity_extract(clarity_df):
 
     missing_r_codes_df = clarity_df[clarity_df["R_codes"].str.len() == 0].copy()
     multiple_r_codes_df = clarity_df[clarity_df["R_codes"].str.len() > 1].copy()
+    clarity_issues_df = pd.concat(
+        [missing_r_codes_df, multiple_r_codes_df], ignore_index=True
+    )
 
     if not missing_r_codes_df.empty:
         print("Samples with missing R codes in Clarity extract:")
         print(missing_r_codes_df[["Specimen Identifier", "R_codes"]])
 
-    if not multiple_r_codes_df.empty:
-        print("Samples with multiple R codes in Clarity extract:")
-        print(multiple_r_codes_df[["Specimen Identifier", "R_codes"]])
-
     # Keep only samples with one R code
     clarity_df = clarity_df[clarity_df["R_codes"].str.len() == 1]
 
-    return clarity_df
+    return clarity_df, clarity_issues_df
 
 
 def get_matching_projects(assays):
@@ -202,21 +204,21 @@ def fetch_all_reports(df, assays, chunk_size=100, max_workers=16):
     all_records = []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
-            executor.submit(query_reports_for_project, pid, chunk): (
-                pid,
+            executor.submit(query_reports_for_project, proj_id, chunk): (
+                proj_id,
                 chunk,
             )
-            for pid, chunk in tasks
+            for proj_id, chunk in tasks
         }
 
         for future in as_completed(futures):
-            pid, chunk = futures[future]
+            proj_id, chunk = futures[future]
             try:
                 result = future.result()
                 if result:
                     all_records.extend(result)
             except Exception as e:
-                print(f"Error fetching reports for project {pid}: {e}")
+                print(f"Error fetching reports for project {proj_id}: {e}")
 
     # Add project names to records
     for record in all_records:
@@ -370,6 +372,7 @@ def filtering_reports(report_df):
 
     Outputs:
         filtered_df (pd.DataFrame): Filtered DataFrame excluding rows with '_CNV_' or '_mosaic_' in 'file_name'.
+        missing_data_df (pd.DataFrame): DataFrame containing rows with missing DNAnexus data.
     """
     if report_df is None or report_df.empty:
         print("Report DataFrame is empty or None. Skipping filtering.")
@@ -408,6 +411,9 @@ def filtering_reports(report_df):
     # columns
     if filtered_df.empty:
         filtered_df = pd.DataFrame(columns=["file_name", "sample_id", "report_r_code", "R_codes"])
+
+    if missing_data_df is None:
+        missing_data_df = pd.DataFrame(columns=["file_name", "sample_id", "report_r_code", "R_codes"])
 
     return filtered_df, missing_data_df
 
@@ -498,7 +504,7 @@ def preprocess_report_df(report_df, base_path):
 
 def handle_clarity_extract(
     clarity_extract_path, assays, base_path
-) -> tuple[DataFrame, DataFrame, DataFrame]:
+):
     """
     Main function to handle clarity extract and return paths to workbooks
     Inputs:
@@ -511,10 +517,13 @@ def handle_clarity_extract(
         missing_data_df (pd.DataFrame): DataFrame of workbooks with missing data
         multiple_reports_df (pd.DataFrame): DataFrame of workbooks
             with multiple workbooks per assay
+        clarity_issues_df (pd.DataFrame): DataFrame of samples with clarity issues
     """
     # Read data into dataframes
     clarity_df = open_files(clarity_extract_path)
-    clarity_df_preprocessed = preprocess_clarity_extract(clarity_df)
+    clarity_df_preprocessed, clarity_issues_df = preprocess_clarity_extract(
+        clarity_df
+    )
 
     if clarity_df_preprocessed.empty:
         print(
@@ -579,4 +588,4 @@ def handle_clarity_extract(
         remove_multiple_reports(report_df)
     )
 
-    return report_df_filtered, missing_data_df, multiple_reports_df
+    return report_df_filtered, missing_data_df, multiple_reports_df, clarity_issues_df
