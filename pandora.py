@@ -276,7 +276,7 @@ def main():
         print(f"Found {len(workbooks_to_process)} workbooks")
         # Output any inconsistent files for review
         output_inconsistent_files(
-            missing_data_df, pd.DataFrame(), timestamp, args.output_dir
+            missing_data_df, pd.DataFrame(), pd.DataFrame(), timestamp, args.output_dir
         )
     elif args.clarity_extract:
         print("Authenticating DNAnexus...")

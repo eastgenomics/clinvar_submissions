@@ -544,7 +544,7 @@ def handle_clarity_extract(
         empty_df = pd.DataFrame(
             columns=list(clarity_df.columns) + list(empty_cols.keys())
         )
-        return empty_df, empty_df.copy(), empty_df.copy()
+        return empty_df, empty_df.copy(), empty_df.copy(), clarity_issues_df
 
     print(f"Processing assays: {assays}")
     report_df = fetch_all_reports(clarity_df_preprocessed, assays)
@@ -566,9 +566,9 @@ def handle_clarity_extract(
             "report_r_code": pd.NA,
         }
         empty_df = pd.DataFrame(
-            columns=list(clarity_df.columns) + list(empty_cols.keys())
+            columns=list(clarity_df.columns) + list(empty_cols.keys()), 
         )
-        return empty_df, empty_df.copy(), empty_df.copy()
+        return empty_df, empty_df.copy(), empty_df.copy(), clarity_issues_df
 
     print(f"Total reports fetched: {report_df.shape[0]}")
 
