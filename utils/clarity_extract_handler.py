@@ -37,6 +37,52 @@ def open_files(clarity):
     return clarity_df
 
 
+def preprocess_clarity_extract(clarity_df):
+    """
+    Preprocess the clarity extract DataFrame by adding necessary columns and cleaning data.
+
+    Inputs:
+        clarity_df (pd.DataFrame): DataFrame containing clarity extract information.
+    Outputs:
+        clarity_df (pd.DataFrame): Preprocessed DataFrame with additional
+        sample_id and R_codes columns.
+        clarity_issues_df (pd.DataFrame): DataFrame containing samples with missing or multiple R codes.
+    """
+    # Split out sample ID to remove "SP-" prefix
+    clarity_df["sample_id"] = (
+        clarity_df["Specimen Identifier"]
+        .str.split("-")
+        .apply(lambda parts: parts[1] if len(parts) > 1 else None)
+    )
+
+    # Split unique base R codes into a list
+    clarity_df["R_codes"] = (
+        clarity_df["Test Directory Test Code"]
+        .fillna("")
+        .str.split("|")
+        .apply(
+            lambda codes: sorted(
+                {re.sub(r"\.\d+$", "", c.strip()) for c in codes if c}
+            )
+        )
+    )
+
+    missing_r_codes_df = clarity_df[clarity_df["R_codes"].str.len() == 0].copy()
+    multiple_r_codes_df = clarity_df[clarity_df["R_codes"].str.len() > 1].copy()
+    clarity_issues_df = pd.concat(
+        [missing_r_codes_df, multiple_r_codes_df], ignore_index=True
+    )
+
+    if not missing_r_codes_df.empty:
+        print("Samples with missing R codes in Clarity extract:")
+        print(missing_r_codes_df[["Specimen Identifier", "R_codes"]])
+
+    # Keep only samples with one R code
+    clarity_df = clarity_df[clarity_df["R_codes"].str.len() == 1]
+
+    return clarity_df, clarity_issues_df
+
+
 def get_matching_projects(assays):
     """
     Retrieve project IDs matching specific name patterns.
@@ -45,20 +91,24 @@ def get_matching_projects(assays):
     assays : list
         The list of assay types to filter projects (e.g., ['CEN', 'TWE']).
     Outputs:
-    matching_projects_tuple_list: list
-        A list of tuples containing project IDs and their names.
-        Each tuple is in the format (project_id, project_name).
+    matching_projects_dict: dict
+        A dictionary mapping project IDs to project names.
     """
     query_str_for_assays = "|".join(assays)
     re_pattern = rf"^002.*_(?:{query_str_for_assays})$"
+
     matching_projects = list(
-        dxpy.find_projects(name={"regexp": re_pattern}, describe=True)
+        dxpy.find_projects(
+            name={"regexp": re_pattern},
+            describe={"fields": {"name": True}}
+        )
     )
-    matching_projects_tuple_list = [
-        (proj["id"], proj["describe"]["name"]) for proj in matching_projects
-    ]
-    print(f"Found {len(matching_projects_tuple_list)} matching projects.")
-    return matching_projects_tuple_list
+    matching_projects_dict = {
+        proj["id"]: proj["describe"]["name"] for proj in matching_projects
+    }
+    print(f"Found {len(matching_projects_dict.keys())} matching projects.")
+
+    return matching_projects_dict
 
 
 def query_reports_for_project(project_id, sample_ids):
@@ -140,29 +190,35 @@ def fetch_all_reports(df, assays, chunk_size=100, max_workers=16):
         DataFrame containing the merged results with additional columns.
     """
     sample_ids = df["sample_id"].tolist()
-    project_info = get_matching_projects(assays)
-    project_dict = dict(project_info)
+    project_dict = get_matching_projects(assays)
 
     # Chunk sample IDs to manage search load
     chunks = [
         sample_ids[i : i + chunk_size] for i in range(0, len(sample_ids), chunk_size)
     ]
 
+    tasks = [
+        (proj_id, chunk) for proj_id in project_dict.keys() for chunk in chunks
+    ]
+
     all_records = []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = []
-        for project_id in project_dict.keys():
-            for chunk in chunks:
-                futures.append(
-                    executor.submit(query_reports_for_project, project_id, chunk)
-                )
+        futures = {
+            executor.submit(query_reports_for_project, proj_id, chunk): (
+                proj_id,
+                chunk,
+            )
+            for proj_id, chunk in tasks
+        }
 
         for future in as_completed(futures):
+            proj_id, chunk = futures[future]
             try:
-                records = future.result()
-                all_records.extend(records)
+                result = future.result()
+                if result:
+                    all_records.extend(result)
             except Exception as e:
-                print(f"Error in future: {e}")
+                print(f"Error fetching reports for project {proj_id}: {e}")
 
     # Add project names to records
     for record in all_records:
@@ -174,6 +230,7 @@ def fetch_all_reports(df, assays, chunk_size=100, max_workers=16):
         print("No records found for the given sample IDs.")
         empty_cols = {"file_name": pd.NA, "project_id": pd.NA, "project_name": pd.NA}
         return df.copy().assign(**empty_cols)
+
     # Merge with the original df to retain additional columns
     merged_df = pd.merge(df, records_df, on="sample_id", how="left")
     print(f"Merged DataFrame shape: {merged_df.shape}")
@@ -228,9 +285,7 @@ def create_path(filename, base_path, assay, run):
 
     # Return None if run_name extraction failed
     if run_name is None:
-        print(
-            f"Warning: Could not extract run_name from '{run}' for filename {filename}. Returning None."
-        )
+        print(f"Warning: Could not extract run_name from '{run}' for filename {filename}. Returning None.")
         return None
 
     # Build path depending on assay
@@ -250,28 +305,6 @@ def create_path(filename, base_path, assay, run):
     return path
 
 
-def find_file_name(search_query):
-    """
-    Find the file name for a given search query on DNAnexus
-    Inputs:
-
-        search_query (str): search query for file name when searching DNAnexus
-    Outputs:
-        filename (str): a file name, or None if no or multiple matches found
-    """
-    files = list(
-        dxpy.find_data_objects(
-            name=search_query, name_mode="glob", describe={"fields": {"name": True}}
-        )
-    )
-    filenames = [file.get("describe").get("name") for file in files]
-    if len(filenames) != 1:
-        print(f"{search_query} returned multiple/no files")
-        return None
-    else:
-        return filenames[0]
-
-
 def is_report_code_in_list(row) -> bool:
     """
     Check if report_r_code is in R_codes list
@@ -284,35 +317,24 @@ def is_report_code_in_list(row) -> bool:
     r_codes = row.get("R_codes", [])
     report_code = row.get("report_r_code")
 
-    # Check if report_code is missing
-    if pd.isna(report_code):
+    if pd.isna(report_code) or r_codes is None:
         return False
 
-    # Handle different types of r_codes input
-    if pd.isna(r_codes) or r_codes == [] or r_codes == "[]":
-        return False
-
-    # Convert string representation of list to actual list
+    # Convert string representation like "['R337']" to actual list (if reading
+    # from file)
     if isinstance(r_codes, str):
         try:
-            # Use ast.literal_eval instead of json.loads for Python literal evaluation
-            r_codes_list = ast.literal_eval(r_codes)
-        except (ValueError, SyntaxError) as e:
-            # If parsing fails, assume it's not a valid list
-            raise ValueError(f"Invalid R_codes format: {r_codes}") from e
-    elif isinstance(r_codes, list):
-        r_codes_list = r_codes
-    else:
-        raise TypeError(f"Unexpected type for R_codes: {type(r_codes)}")
+            r_codes = ast.literal_eval(r_codes)
+        except Exception:
+            return False
 
-    # Handle empty list
-    if not r_codes_list:
+    if not isinstance(r_codes, (list, tuple)) or len(r_codes) == 0:
         return False
 
     # Normalize and compare
-    target = re.sub(r"\.\d+", "", str(report_code))
+    target = re.sub(r"\.\d+$", "", str(report_code)).strip()
     normalized_codes = [
-        re.sub(r"\.\d+", "", str(c)) for c in r_codes_list
+        re.sub(r"\.\d+$", "", str(c)).strip() for c in r_codes if c
     ]
 
     return target in normalized_codes
@@ -350,25 +372,53 @@ def filtering_reports(report_df):
 
     Outputs:
         filtered_df (pd.DataFrame): Filtered DataFrame excluding rows with '_CNV_' or '_mosaic_' in 'file_name'.
+        missing_data_df (pd.DataFrame): DataFrame containing rows with missing DNAnexus data.
     """
     if report_df is None or report_df.empty:
         print("Report DataFrame is empty or None. Skipping filtering.")
-        return report_df
+        return (
+            pd.DataFrame(columns=["file_name", "sample_id", "report_r_code", "R_codes"]),
+            report_df,
+        )
 
-    report_df["rcode_match"] = report_df.apply(is_report_code_in_list, axis=1)
-    # Filter rows where R code doesn't match
-    report_df = report_df[report_df["rcode_match"]].copy()
-    # clean up by dropping the rcode_match column
-    report_df = report_df.drop(columns=["rcode_match"])
-    # Filter out rows where filename contains _CNV_ or _mosaic_
-    filtered_df = report_df[
-        ~report_df["file_name"].str.contains(r"_(CNV|mosaic)_", na=False)
-    ]
+    # Remove rows with no DX data (as they would be silently removed by
+    # the R code matching below)
+    missing_mask = (
+        report_df["file_name"].isna() |
+        report_df["report_r_code"].isna()
+    )
+    missing_data_df = report_df[missing_mask].copy()
+    if not missing_data_df.empty:
+        print(f"{missing_data_df.shape[0]} rows have missing DNAnexus data.")
 
-    return filtered_df
+    # Check R code matches
+    report_df = report_df[~missing_mask].copy()
+
+    if not report_df.empty:
+        report_df["rcode_match"] = report_df.apply(is_report_code_in_list, axis=1)
+        # Filter rows where R code doesn't match
+        report_df = report_df[report_df["rcode_match"]].copy()
+        # clean up by dropping the rcode_match column
+        report_df = report_df.drop(columns=["rcode_match"], errors="ignore")
+        # Filter out rows where filename contains _CNV_ or _mosaic_
+        filtered_df = report_df[
+            ~report_df["file_name"].str.contains(r"_(CNV|mosaic)_", na=False)
+        ].copy()
+    else:
+        filtered_df = pd.DataFrame(columns=report_df.columns)
+
+    # If we've filtered all rows out, ensure we return empty df with expected
+    # columns
+    if filtered_df.empty:
+        filtered_df = pd.DataFrame(columns=["file_name", "sample_id", "report_r_code", "R_codes"])
+
+    if missing_data_df is None:
+        missing_data_df = pd.DataFrame(columns=["file_name", "sample_id", "report_r_code", "R_codes"])
+
+    return filtered_df, missing_data_df
 
 
-def remove_missing_and_multiple_reports(report_df):
+def remove_multiple_reports(report_df):
     """
     Remove reports with missing or multiple files.
 
@@ -376,64 +426,49 @@ def remove_missing_and_multiple_reports(report_df):
         report_df (pd.DataFrame): DataFrame containing report information with a 'file_name' column.
 
     Outputs:
-        report_df_filtered (pd.DataFrame): Filtered DataFrame excluding rows with missing or multiple files.
-        missing_data_df (pd.DataFrame): DataFrame containing rows with missing data in 'file_name' or 'R_codes'.
+        report_df_filtered (pd.DataFrame): Filtered DataFrame excluding rows with multiple files.
         multiple_reports_df (pd.DataFrame): DataFrame containing rows with multiple reports per assay.
     """
-
-    missing_data = report_df["file_name"].isna() | report_df["R_codes"].isna()
-    missing_data_df = report_df[missing_data]
-    if missing_data.any():
-        print(
-            f"Warning: {missing_data.sum()} rows have missing data in 'file_name' or 'R_codes'."
-        )
-
-    # Mask to filter out rows with NaN R codes and empty file names which aren't '' just blank
-    report_df = report_df.dropna(subset=["file_name", "report_r_code"]).copy()
-    print(
-        f"After filtering out NaN R codes and empty file names: {report_df.shape[0]} rows remaining"
-    )
-
-    # Drop duplicates on all columns except certain ones
-    cols_to_check = [col for col in report_df.columns if col not in ["R_codes"]]
+    # Drop duplicates
+    cols_to_check = [c for c in report_df.columns if c != "R_codes"]
     report_df = report_df.drop_duplicates(subset=cols_to_check).copy()
     print(f"After dropping duplicates: {report_df.shape[0]} rows remaining")
 
+
     # Save rows with multiple reports per assay to a separate file
-    multiple_reports = (
+    counts = (
         report_df.groupby(["sample_id", "Assay", "report_r_code"])
         .size()
         .reset_index(name="report_count")
-    ).copy()
-    multiple_reports = multiple_reports[multiple_reports["report_count"] > 1]
-    multiple_reports_df = pd.DataFrame()
+    )
+
+    multiple_reports = counts.query("report_count > 1")
+    single_reports = counts.query("report_count == 1")
+
     if not multiple_reports.empty:
-        print(f"Samples with multiple reports per assay: {multiple_reports.shape[0]}")
-        # Filter the original report_df to keep only samples with single reports
-        multiple_reports_df = pd.merge(
-            report_df,
-            multiple_reports[["sample_id", "Assay", "report_r_code"]],
-            on=["sample_id", "Assay", "report_r_code"],
-            how="inner",
-        ).copy()
+        print(
+            "Samples with multiple reports per assay:"
+            f" {multiple_reports.shape[0]}"
+        )
+        multiple_reports_df = (
+            report_df.merge(
+                multiple_reports[["sample_id", "Assay", "report_r_code"]],
+                on=["sample_id", "Assay", "report_r_code"],
+                how="inner"
+            )
+        )
     else:
         print("No samples with multiple reports per assay found.")
+        multiple_reports_df = pd.DataFrame(columns=report_df.columns)
 
-    # Remove rows with multiple reports per assay
-    report_df_grouped = (
-        report_df.groupby(["sample_id", "Assay", "report_r_code"])
-        .size()
-        .reset_index(name="report_count")
-    ).copy()
-    single_reports_df = report_df_grouped[report_df_grouped["report_count"] == 1]
     # Filter the original report_df to keep only samples with single reports
-    report_df_filtered = pd.merge(
-        report_df,
-        single_reports_df[["sample_id", "Assay", "report_r_code"]],
+    report_df_filtered = report_df.merge(
+        single_reports[["sample_id", "Assay", "report_r_code"]],
         on=["sample_id", "Assay", "report_r_code"],
-        how="inner",
-    ).copy()
-    return report_df_filtered, missing_data_df, multiple_reports_df
+        how="inner"
+    )
+
+    return report_df_filtered, multiple_reports_df
 
 
 def preprocess_report_df(report_df, base_path):
@@ -447,20 +482,6 @@ def preprocess_report_df(report_df, base_path):
     Outputs:
         report_df (pd.DataFrame): Preprocessed DataFrame with additional columns.
     """
-    # Split R codes into a list
-    report_df["R_codes"] = (
-        report_df["Test Directory Test Code"].fillna("").str.split("|")
-    )
-
-    # remove decimal points from R codes
-    report_df["R_codes"] = report_df["R_codes"].apply(
-        lambda x: [
-            re.sub(r"\.\d+", "", code)
-            for code in x
-            if isinstance(code, str) and code.startswith("R")
-        ]
-    )
-
     # Extract assay from filename
     report_df["Assay"] = report_df["file_name"].apply(extract_assay_from_filename)
 
@@ -483,7 +504,7 @@ def preprocess_report_df(report_df, base_path):
 
 def handle_clarity_extract(
     clarity_extract_path, assays, base_path
-) -> tuple[DataFrame, DataFrame, DataFrame]:
+):
     """
     Main function to handle clarity extract and return paths to workbooks
     Inputs:
@@ -496,17 +517,37 @@ def handle_clarity_extract(
         missing_data_df (pd.DataFrame): DataFrame of workbooks with missing data
         multiple_reports_df (pd.DataFrame): DataFrame of workbooks
             with multiple workbooks per assay
+        clarity_issues_df (pd.DataFrame): DataFrame of samples with clarity issues
     """
     # Read data into dataframes
     clarity_df = open_files(clarity_extract_path)
+    clarity_df_preprocessed, clarity_issues_df = preprocess_clarity_extract(
+        clarity_df
+    )
 
-    # Process data to construct a path for each specimen
-    # create df with column by splitting the Beaker Procedure Name to create a new column for assay
-    clarity_df["sample_id"] = clarity_df["Specimen Identifier"].str.split("-").str[1]
-    report_df = pd.DataFrame()
+    if clarity_df_preprocessed.empty:
+        print(
+            "No valid samples with single R codes found in Clarity extract."
+            " Returning empty DataFrames."
+        )
+        empty_cols = {
+            "file_name": pd.NA,
+            "project_id": pd.NA,
+            "project_name": pd.NA,
+            "R_codes": pd.NA,
+            "Assay": pd.NA,
+            "path": pd.NA,
+            "instrument_id": pd.NA,
+            "full_sample_id": pd.NA,
+            "report_r_code": pd.NA,
+        }
+        empty_df = pd.DataFrame(
+            columns=list(clarity_df.columns) + list(empty_cols.keys())
+        )
+        return empty_df, empty_df.copy(), empty_df.copy()
 
     print(f"Processing assays: {assays}")
-    report_df = fetch_all_reports(clarity_df, assays)
+    report_df = fetch_all_reports(clarity_df_preprocessed, assays)
 
     # Add check for empty DataFrame
     if report_df.empty:
@@ -534,12 +575,17 @@ def handle_clarity_extract(
     # Preprocess report_df
     report_df = preprocess_report_df(report_df, base_path)
     print(f"Report DataFrame after preprocessing: {report_df.shape[0]} rows")
-    # Filter out all rows where filename contains _CNV_ or _mosaic_
-    report_df = filtering_reports(report_df)
 
-    # Remove missing and multiple reports
-    report_df_filtered, missing_data_df, multiple_reports_df = (
-        remove_missing_and_multiple_reports(report_df)
+    # Filter out all rows where filename contains _CNV_ or _mosaic_
+    report_df, missing_data_df = filtering_reports(report_df)
+    print(
+        f"Report DataFrame after filtering CNV/mosaic and R code mismatches:"
+        f" {report_df.shape[0]} rows"
     )
 
-    return report_df_filtered, missing_data_df, multiple_reports_df
+    # Remove missing and multiple reports
+    report_df_filtered, multiple_reports_df = (
+        remove_multiple_reports(report_df)
+    )
+
+    return report_df_filtered, missing_data_df, multiple_reports_df, clarity_issues_df

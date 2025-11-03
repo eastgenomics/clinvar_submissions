@@ -126,13 +126,14 @@ def validate_output_dir(path_str: str) -> Path:
 
 
 def output_inconsistent_files(
-    missing_data_df=None, duplicate_data_df=None, timestamp=None, output_dir=None
+    missing_data_df, duplicate_data_df, clarity_issues_df, timestamp=None, output_dir=None
 ):
     """
     Output any inconsistent files from clarity extract handling for review
     Inputs:
         missing_data_df (pd.DataFrame): dataframe of samples with missing data
         duplicate_data_df (pd.DataFrame): dataframe of samples with duplicate data
+        clarity_issues_df (pd.DataFrame): dataframe of samples with clarity issues
         timestamp (str): timestamp to append to filenames
         output_dir (str): directory to output inconsistent files to
     Outputs:
@@ -140,10 +141,6 @@ def output_inconsistent_files(
     Side effects:
         Outputs CSV files if any inconsistent data found
     """
-    if missing_data_df is None:
-        missing_data_df = pd.DataFrame()
-    if duplicate_data_df is None:
-        duplicate_data_df = pd.DataFrame()
     if timestamp is None:
         print("Timestamp not provided. Not outputting inconsistent files.")
         return
@@ -167,7 +164,16 @@ def output_inconsistent_files(
             output_dir, f"duplicate_data_clarity_extract_{timestamp}.csv"
         )
         duplicate_data_df.to_csv(path_to_duplicate, index=False)
-    if missing_data_df.empty and duplicate_data_df.empty:
+    if not clarity_issues_df.empty:
+        print(
+            f"{clarity_issues_df.shape[0]} samples with clarity issues found in "
+            f"clarity extract. See clarity_issues_clarity_extract_{timestamp}.csv for details."
+        )
+        path_to_clarity_issues = os.path.join(
+            output_dir, f"clarity_issues_clarity_extract_{timestamp}.csv"
+        )
+        clarity_issues_df.to_csv(path_to_clarity_issues, index=False)
+    if missing_data_df.empty and duplicate_data_df.empty and clarity_issues_df.empty:
         print("No inconsistent data found.")
 
 
@@ -287,47 +293,53 @@ def main():
             raise SystemExit(1)
         clarity_df = pd.DataFrame()
         missing_data_df = pd.DataFrame()
-        clarity_df, missing_data_df, duplicate_data_df = (
+        clarity_df, missing_data_df, duplicate_data_df, clarity_issues_df = (
             clarity_handler.handle_clarity_extract(
                 args.clarity_extract, rd_assays, base_path
             )
         )
-        if args.use_paths:
-            print("Using paths from clarity extract directly.")
-            # Check files exist and exclude any that don't
-            clarity_df, missing_file_paths_df = utils.check_files_exist_and_exclude(
-                clarity_df, "path"
-            )
-            # merge missing data dfs
-            missing_data_df = pd.concat(
-                [missing_data_df, missing_file_paths_df], ignore_index=True
-            )
-            # remove any CNV workbooks and mosaic workbooks
-            workbooks_to_process = clarity_df["path"].tolist()
-            print(f"Found {len(workbooks_to_process)} workbooks")
-            # Output any inconsistent files for review
-            output_inconsistent_files(
-                missing_data_df, duplicate_data_df, timestamp, args.output_dir
+        if clarity_df.empty:
+            print(
+                "Clarity extract is empty after preprocessing. Skipping "
+                "processing."
             )
         else:
-            print(
-                "--use_paths not specified so outputting clarity extract dataframes for review."
-            )
-            print("These can be processed by using --samples_file option.")
-            # Output dataframes for review name after date and input clarity?
-            path_to_parsed_clarity = os.path.join(
-                args.output_dir, f"clarity_extract_parsed_paths_{timestamp}.csv"
-            )
-            clarity_df.to_csv(
-                path_to_parsed_clarity,
-                index=False,
-            )
-            print(
-                f"Clarity extract parsed paths output to {path_to_parsed_clarity}"
-            )
-            output_inconsistent_files(
-                missing_data_df, duplicate_data_df, timestamp, args.output_dir
-            )
+            if args.use_paths:
+                print("Using paths from clarity extract directly.")
+                # Check files exist and exclude any that don't
+                clarity_df, missing_file_paths_df = utils.check_files_exist_and_exclude(
+                    clarity_df, "path"
+                )
+                # merge missing data dfs
+                missing_data_df = pd.concat(
+                    [missing_data_df, missing_file_paths_df], ignore_index=True
+                )
+                # remove any CNV workbooks and mosaic workbooks
+                workbooks_to_process = clarity_df["path"].tolist()
+                print(f"Found {len(workbooks_to_process)} workbooks")
+                # Output any inconsistent files for review
+                output_inconsistent_files(
+                    missing_data_df, duplicate_data_df, clarity_issues_df, timestamp, args.output_dir
+                )
+            else:
+                print(
+                    "--use_paths not specified so outputting clarity extract dataframes for review."
+                )
+                print("These can be processed by using --samples_file option.")
+                # Output dataframes for review name after date and input clarity?
+                path_to_parsed_clarity = os.path.join(
+                    args.output_dir, f"clarity_extract_parsed_paths_{timestamp}.csv"
+                )
+                clarity_df.to_csv(
+                    path_to_parsed_clarity,
+                    index=False,
+                )
+                print(
+                    f"Clarity extract parsed paths output to {path_to_parsed_clarity}"
+                )
+                output_inconsistent_files(
+                    missing_data_df, duplicate_data_df, clarity_issues_df, timestamp, args.output_dir
+                )
 
     # Get previously parsed workbooks
     parsed_workbook_df = db.select_workbooks_from_db(engine, "parse_status = TRUE")

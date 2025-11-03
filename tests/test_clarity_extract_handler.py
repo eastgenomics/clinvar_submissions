@@ -153,7 +153,7 @@ def test_get_matching_projects(mock_find_projects):
         {"id": "proj-2", "describe": {"name": "002_bar_CEN"}},
     ]
     result = ceh.get_matching_projects(["CEN"])
-    assert result == [("proj-1", "002_foo_CEN"), ("proj-2", "002_bar_CEN")]
+    assert result == {"proj-1": "002_foo_CEN", "proj-2": "002_bar_CEN"}
 
 
 @patch("utils.clarity_extract_handler.dxpy.find_data_objects")
@@ -188,35 +188,6 @@ def test_query_reports_for_project_exact_id_match(mock_find_data_objects):
     assert records == expected_list
 
 
-def test_find_file_name_no_files_found(monkeypatch):
-    # No files returned
-    monkeypatch.setattr(ceh.dxpy, "find_data_objects", lambda **kwargs: [])
-    assert ceh.find_file_name("SP-24010R0031*") is None
-
-
-def test_find_file_name_multiple_files(monkeypatch):
-    # Multiple files returned -> should return None
-    monkeypatch.setattr(
-        ceh.dxpy,
-        "find_data_objects",
-        lambda **kwargs: [
-            {"describe": {"name": "SP-24010R0031-CEN_R208.1_1.xlsx"}},
-            {"describe": {"name": "SP-24010R0031-CEN_R208.1_2.xlsx"}},
-        ],
-    )
-    assert ceh.find_file_name("SP-24010R0031*") is None
-
-
-def test_find_file_name_single_file(monkeypatch):
-    # Single file returned -> should return that filename
-    monkeypatch.setattr(
-        ceh.dxpy,
-        "find_data_objects",
-        lambda **kwargs: [{"describe": {"name": "SP-24010R0031-CEN_R208.1_1.xlsx"}}],
-    )
-    assert ceh.find_file_name("SP-24010R0031*") == "SP-24010R0031-CEN_R208.1_1.xlsx"
-
-
 class TestExtractAssayFromFilename:
     """Test extracting assay from filename."""
 
@@ -231,33 +202,6 @@ class TestExtractAssayFromFilename:
 
     def test_unknown_assay(self):
         assert ceh.extract_assay_from_filename("file_UNKNOWN_123.xlsx") is None
-
-
-class TestFindFileName:
-    """Test finding file names in a project."""
-
-    def test_no_files(self, monkeypatch):
-        monkeypatch.setattr(ceh.dxpy, "find_data_objects", lambda **kwargs: [])
-        assert ceh.find_file_name("sample*") is None
-
-    def test_multiple_files(self, monkeypatch):
-        monkeypatch.setattr(
-            ceh.dxpy,
-            "find_data_objects",
-            lambda **kwargs: [
-                {"describe": {"name": "sample1.xlsx"}},
-                {"describe": {"name": "sample2.xlsx"}},
-            ],
-        )
-        assert ceh.find_file_name("sample*") is None
-
-    def test_single_file(self, monkeypatch):
-        monkeypatch.setattr(
-            ceh.dxpy,
-            "find_data_objects",
-            lambda **kwargs: [{"describe": {"name": "sample1.xlsx"}}],
-        )
-        assert ceh.find_file_name("sample*") == "sample1.xlsx"
 
 
 class TestRCodeMatching:
@@ -316,3 +260,326 @@ class TestRCodeMatching:
         # function is case-sensitive; lower-case report code should not match upper-case list
         row = example_df_lowercase_r_codes.iloc[0]
         assert ceh.is_report_code_in_list(row) is False
+
+
+class TestPreProcessClarityExtract:
+    """Test preprocessing of clarity extract DataFrame."""
+
+    def test_preprocess_clarity_df_same_R_code_multiple_test_mode(self):
+        example_df = pd.DataFrame(
+            {
+                "Beaker Procedure Name": ["RARE DISEASE NGS ANALYSIS"],
+                "Specimen Identifier": [
+                    "SP-250123R0037",
+                ],
+                "Test Directory Test Code": ["R228.1|R228.2"],
+            }
+        )
+
+        processed_df, clarity_issues_df = ceh.preprocess_clarity_extract(example_df)
+
+        expected_df = pd.DataFrame(
+            {
+                "Beaker Procedure Name": ["RARE DISEASE NGS ANALYSIS"],
+                "Specimen Identifier": [
+                    "SP-250123R0037",
+                ],
+                "Test Directory Test Code": ["R228.1|R228.2"],
+                "sample_id": [
+                    "250123R0037",
+                ],
+                "R_codes": [
+                    ["R228"],
+                ],
+            }
+        )
+
+        pd.testing.assert_frame_equal(processed_df, expected_df)
+
+        expected_issues_df = pd.DataFrame(
+            {
+                "Beaker Procedure Name": pd.Series([], dtype="object"),
+                "Specimen Identifier": pd.Series([], dtype="object"),
+                "Test Directory Test Code": pd.Series([], dtype="object"),
+                "sample_id": pd.Series([], dtype="object"),
+                "R_codes": pd.Series([], dtype="object"),
+            }
+        )
+
+        pd.testing.assert_frame_equal(clarity_issues_df, expected_issues_df)
+
+    def test_preprocess_clarity_df_single_R_code(self):
+        example_df = pd.DataFrame(
+            {
+                "Beaker Procedure Name": ["CEN NGS"] * 2,
+                "Specimen Identifier": ["SP-250126R0040", "SP-250127R0041"],
+                "Test Directory Test Code": ["R208.1", "R149.1"],
+            }
+        )
+
+        processed_df, clarity_issues_df = ceh.preprocess_clarity_extract(example_df)
+
+        expected_df = pd.DataFrame(
+            {
+                "Beaker Procedure Name": ["CEN NGS"] * 2,
+                "Specimen Identifier": ["SP-250126R0040", "SP-250127R0041"],
+                "Test Directory Test Code": ["R208.1", "R149.1"],
+                "sample_id": [
+                    "250126R0040",
+                    "250127R0041",
+                ],
+                "R_codes": [
+                    ["R208"],
+                    ["R149"],
+                ],
+            }
+        )
+
+        pd.testing.assert_frame_equal(processed_df, expected_df)
+
+        expected_issues_df = pd.DataFrame(
+            {
+                "Beaker Procedure Name": pd.Series([], dtype="object"),
+                "Specimen Identifier": pd.Series([], dtype="object"),
+                "Test Directory Test Code": pd.Series([], dtype="object"),
+                "sample_id": pd.Series([], dtype="object"),
+                "R_codes": pd.Series([], dtype="object"),
+            }
+        )
+
+        pd.testing.assert_frame_equal(clarity_issues_df, expected_issues_df)
+
+    def test_preprocess_clarity_df_no_R_code(self):
+        example_df = pd.DataFrame(
+            {
+                "Beaker Procedure Name": ["WES NGS"] * 2,
+                "Specimen Identifier": ["SP-250128R0042", "SP-250129R0043"],
+                "Test Directory Test Code": [pd.NA, pd.NA],
+            }
+        )
+
+        processed_df, clarity_issues_df = ceh.preprocess_clarity_extract(example_df)
+
+        expected_df = pd.DataFrame(
+            {
+                "Beaker Procedure Name": pd.Series([], dtype="object"),
+                "Specimen Identifier": pd.Series([], dtype="object"),
+                "Test Directory Test Code": pd.Series([], dtype="object"),
+                "sample_id": pd.Series([], dtype="object"),
+                "R_codes": pd.Series([], dtype="object"),
+            }
+        )
+
+        pd.testing.assert_frame_equal(processed_df, expected_df)
+
+        expected_issues_df = pd.DataFrame(
+            {
+                "Beaker Procedure Name": ["WES NGS"] * 2,
+                "Specimen Identifier": ["SP-250128R0042", "SP-250129R0043"],
+                "Test Directory Test Code": [pd.NA, pd.NA],
+                "sample_id": ["250128R0042", "250129R0043"],
+                "R_codes": [[], []],
+            }
+        )
+        pd.testing.assert_frame_equal(clarity_issues_df, expected_issues_df)
+
+    def test_preprocess_clarity_df_multiple_R_codes_and_no_R_code(self):
+        example_df = pd.DataFrame(
+            {
+                "Beaker Procedure Name": ["WES NGS"] * 2,
+                "Specimen Identifier": ["SP-250128R0042", "SP-250129R0043"],
+                "Test Directory Test Code": ["R208.1|R209.1", pd.NA],
+            }
+        )
+
+        processed_df, clarity_issues_df = ceh.preprocess_clarity_extract(example_df)
+
+        expected_df = pd.DataFrame(
+            {
+                "Beaker Procedure Name": pd.Series([], dtype="object"),
+                "Specimen Identifier": pd.Series([], dtype="object"),
+                "Test Directory Test Code": pd.Series([], dtype="object"),
+                "sample_id": pd.Series([], dtype="object"),
+                "R_codes": pd.Series([], dtype="object"),
+            }
+        )
+
+        pd.testing.assert_frame_equal(processed_df, expected_df)
+
+        expected_issues_df = pd.DataFrame(
+            {
+                "Beaker Procedure Name": ["WES NGS"] * 2,
+                "Specimen Identifier": ["SP-250129R0043", "SP-250128R0042"],
+                "Test Directory Test Code": [pd.NA, "R208.1|R209.1"],
+                "sample_id": ["250129R0043", "250128R0042"],
+                "R_codes": [[], ["R208", "R209"]],
+            }
+        )
+
+        pd.testing.assert_frame_equal(clarity_issues_df, expected_issues_df)
+
+
+class TestPreprocessReportDf:
+    """Test preprocessing of report DataFrame."""
+
+    def test_preprocess_report_df(self):
+        example_df = pd.DataFrame(
+            {
+                "file_name": ["129740955-24123R0012-24NGCEN42-9527-F-99347387_R228.1_SNV_1.xlsx"],
+                "sample_id": ["24123R0012"],
+                "project_name": ["002_240516_A01303_0387_BH7F2WDRX5_38_CEN"],
+            }
+        )
+
+        base_path = "/test_workbooks/"
+        processed_df = ceh.preprocess_report_df(example_df, base_path)
+
+        expected_df = pd.DataFrame(
+            {
+                "file_name": ["129740955-24123R0012-24NGCEN42-9527-F-99347387_R228.1_SNV_1.xlsx"],
+                "sample_id": ["24123R0012"],
+                "project_name": ["002_240516_A01303_0387_BH7F2WDRX5_38_CEN"],
+                "Assay": ["CEN"],
+                "path": [Path("/test_workbooks/CEN/Run folders/240516_A01303_0387_BH7F2WDRX5_CEN/129740955-24123R0012-24NGCEN42-9527-F-99347387_R228.1_SNV_1.xlsx")],
+                "instrument_id": ["129740955"],
+                "full_sample_id": ["129740955-24123R0012"],
+                "report_r_code": ["R228.1"],
+            }
+        )
+
+        pd.testing.assert_frame_equal(processed_df, expected_df)
+
+
+class TestFilteringReports:
+    """Test filtering of reports DataFrame."""
+    def test_filtering_reports_cnv_code(self):
+        example_df = pd.DataFrame(
+            {
+                "file_name": [
+                    "129740957-24123R0014-24NGCEN42-9527-F-99347389_R228.1_SNV_1.xlsx",
+                    "129740957-24123R0014-24NGCEN42-9527-F-99347389_R228.1_CNV_1.xlsx",
+                ],
+                "sample_id": [
+                    "24123R0014",
+                    "24123R0014",
+                ],
+                "report_r_code": [
+                    "R228.1",
+                    "R228.1",
+                ],
+                "R_codes": [
+                    ["R228"],
+                    ["R228"]
+                ]
+            }
+        )
+
+        filtered_df, missing_data_df = ceh.filtering_reports(example_df)
+
+        expected_filtered_df = pd.DataFrame(
+            {
+                "file_name": [
+                    "129740957-24123R0014-24NGCEN42-9527-F-99347389_R228.1_SNV_1.xlsx",
+                ],
+                "sample_id": [
+                    "24123R0014",
+                ],
+                "report_r_code": [
+                    "R228.1",
+                ],
+                "R_codes": [
+                    ["R228"]
+                ],
+            }
+        )
+
+        expected_missing_data_df = pd.DataFrame({
+            'file_name': pd.Series(dtype='object'),
+            'sample_id': pd.Series(dtype='object'),
+            'report_r_code': pd.Series(dtype='object'),
+            'R_codes': pd.Series(dtype='object')
+        })
+
+        pd.testing.assert_frame_equal(filtered_df, expected_filtered_df)
+        pd.testing.assert_frame_equal(missing_data_df, expected_missing_data_df)
+
+    def test_filtering_r_code_mismatch(self):
+        example_df = pd.DataFrame(
+            {
+                "file_name": [
+                    "129740958-24123R0015-24NGCEN42-9527-F-99347390_R228.1_SNV_1.xlsx",
+                    "129740958-24123R0015-24NGCEN42-9527-F-99347390_R149.1_SNV_1.xlsx",
+                ],
+                "sample_id": [
+                    "24123R0015",
+                    "24123R0015",
+                ],
+                "report_r_code": [
+                    "R228.1",
+                    "R149.1",
+                ],
+                "R_codes": [
+                    ["R228"],
+                    ["R228"]
+                ]
+            }
+        )
+
+        filtered_df, missing_data_df = ceh.filtering_reports(example_df)
+
+        expected_filtered_df = pd.DataFrame({
+            'file_name': ["129740958-24123R0015-24NGCEN42-9527-F-99347390_R228.1_SNV_1.xlsx"],
+            'sample_id': ["24123R0015"],
+            'report_r_code': ["R228.1"],
+            'R_codes': [["R228"]]
+        })
+
+        pd.testing.assert_frame_equal(filtered_df, expected_filtered_df)
+
+        expected_filtered_df = pd.DataFrame({
+            'file_name': pd.Series(dtype='object'),
+            'sample_id': pd.Series(dtype='object'),
+            'report_r_code': pd.Series(dtype='object'),
+            'R_codes': pd.Series(dtype='object')
+        })
+
+        pd.testing.assert_frame_equal(missing_data_df, expected_filtered_df)
+
+    def test_filtering_no_filename(self):
+        example_df = pd.DataFrame(
+            {
+                "file_name": [
+                    pd.NA,
+                ],
+                "sample_id": [
+                    "24123R0015",
+                ],
+                "report_r_code": [
+                    pd.NA
+                ],
+                "R_codes": [
+                    ["R228"],
+                ]
+            }
+        )
+
+        filtered_df, missing_data_df = ceh.filtering_reports(example_df)
+        expected_filtered_df = pd.DataFrame({
+            'file_name': pd.Series(dtype='object'),
+            'sample_id': pd.Series(dtype='object'),
+            'report_r_code': pd.Series(dtype='object'),
+            'R_codes': pd.Series(dtype='object')
+        })
+
+        pd.testing.assert_frame_equal(filtered_df, expected_filtered_df)
+
+        expected_missing_data_df = pd.DataFrame(
+            {
+                "file_name": [pd.NA],
+                "sample_id": ["24123R0015"],
+                "report_r_code": [pd.NA],
+                "R_codes": [["R228"]],
+            }
+        )
+
+        pd.testing.assert_frame_equal(missing_data_df, expected_missing_data_df)
