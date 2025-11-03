@@ -373,7 +373,10 @@ def filtering_reports(report_df):
     """
     if report_df is None or report_df.empty:
         print("Report DataFrame is empty or None. Skipping filtering.")
-        return report_df
+        return (
+            pd.DataFrame(columns=["file_name", "sample_id", "report_r_code", "R_codes"]),
+            report_df,
+        )
 
     # Remove rows with no DX data (as they would be silently removed by
     # the R code matching below)
@@ -387,19 +390,24 @@ def filtering_reports(report_df):
 
     # Check R code matches
     report_df = report_df[~missing_mask].copy()
-    report_df["rcode_match"] = report_df.apply(is_report_code_in_list, axis=1)
-    # Filter rows where R code doesn't match
-    report_df = report_df[report_df["rcode_match"]].copy()
-    # clean up by dropping the rcode_match column
-    if "rcode_match" in report_df.columns:
-        report_df = report_df.drop(columns=["rcode_match"])
-    # Filter out rows where filename contains _CNV_ or _mosaic_
-    if "file_name" in report_df.columns:
+
+    if not report_df.empty:
+        report_df["rcode_match"] = report_df.apply(is_report_code_in_list, axis=1)
+        # Filter rows where R code doesn't match
+        report_df = report_df[report_df["rcode_match"]].copy()
+        # clean up by dropping the rcode_match column
+        report_df = report_df.drop(columns=["rcode_match"], errors="ignore")
+        # Filter out rows where filename contains _CNV_ or _mosaic_
         filtered_df = report_df[
             ~report_df["file_name"].str.contains(r"_(CNV|mosaic)_", na=False)
         ].copy()
     else:
-        filtered_df = report_df.copy()
+        filtered_df = pd.DataFrame(columns=report_df.columns)
+
+    # If we've filtered all rows out, ensure we return empty df with expected
+    # columns
+    if filtered_df.empty:
+        filtered_df = pd.DataFrame(columns=["file_name", "sample_id", "report_r_code", "R_codes"])
 
     return filtered_df, missing_data_df
 
