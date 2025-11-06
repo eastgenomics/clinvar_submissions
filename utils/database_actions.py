@@ -93,14 +93,18 @@ def add_submission_id_to_db(response, engine, variants):
         # Otherwise, update the inca table with an error message
         if sub_id:
             conn.execute(
-                f"UPDATE testdirectory.inca SET submission_id = '{sub_id}' "
-                f"WHERE local_id in ({submitted_variants})"
+                text(
+                    f"UPDATE testdirectory.inca SET submission_id = '{sub_id}' "
+                    f"WHERE local_id in ({submitted_variants})"
+                )
             )
         else:
             error = response.get('message')
             conn.execute(
-                f"UPDATE testdirectory.inca SET clinvar_status = 'ERROR: {error}' "
-                f"WHERE local_id in ({submitted_variants})"
+                text(
+                    f"UPDATE testdirectory.inca SET clinvar_status = 'ERROR: {error}' "
+                    f"WHERE local_id in ({submitted_variants})"
+                )
             )
 
 
