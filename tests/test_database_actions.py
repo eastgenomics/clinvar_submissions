@@ -5,8 +5,6 @@ from unittest.mock import call
 from freezegun import freeze_time
 import utils.database_actions as db
 import pandas as pd
-from itertools import chain
-
 
 class TestDatabaseEngine(unittest.TestCase):
     """
@@ -72,12 +70,21 @@ class TestDatabaseEngine(unittest.TestCase):
         # Patch engine.begin().__enter__() to return mock_conn
         mock_engine.begin.return_value.__enter__.return_value = mock_conn
         response = {"id": "SUB123456"}
+        db.add_submission_id_to_db(response, mock_engine, self.variants)
+
+        # Check execute was called once
+        mock_conn.execute.assert_called_once()
+
+        # Get the actual SQL text
+        call_args = mock_conn.execute.call_args
+        sql_text_obj = call_args[0][0]
+        actual_sql = str(sql_text_obj).strip()
+
         expected_sql = (
             "UPDATE testdirectory.inca SET submission_id = 'SUB123456' "
             "WHERE local_id in ('uid_12345', 'uid_67890')"
         )
-        db.add_submission_id_to_db(response, mock_engine, self.variants)
-        mock_conn.execute.assert_called_once_with(expected_sql)
+        self.assertEqual(actual_sql, expected_sql)
 
     def test_add_submission_id_to_db_if_error_returned(self):
         mock_engine = mock.MagicMock()
@@ -85,12 +92,20 @@ class TestDatabaseEngine(unittest.TestCase):
         # Patch engine.begin().__enter__() to return mock_conn
         mock_engine.begin.return_value.__enter__.return_value = mock_conn
         response = {"message": "No valid API key provided"}
+        db.add_submission_id_to_db(response, mock_engine, self.variants)
+        # Check execute was called once
+        mock_conn.execute.assert_called_once()
+        
+        # Get the actual SQL text
+        call_args = mock_conn.execute.call_args
+        sql_text_obj = call_args[0][0]
+        actual_sql = str(sql_text_obj).strip()
+
         expected_sql = (
             "UPDATE testdirectory.inca SET clinvar_status = 'ERROR: No valid "
             "API key provided' WHERE local_id in ('uid_12345', 'uid_67890')"
         )
-        db.add_submission_id_to_db(response, mock_engine, self.variants)
-        mock_conn.execute.assert_called_once_with(expected_sql)
+        self.assertEqual(actual_sql, expected_sql)
 
     def test_add_error_to_db(self):
         # Prepare mock engine and connection
