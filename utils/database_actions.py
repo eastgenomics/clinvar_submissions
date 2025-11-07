@@ -85,8 +85,7 @@ def add_submission_id_to_db(response, engine, variants):
     Outputs:
         None, adds data to db
     '''
-    add_quotes = [f"'{x}'" for x in variants]
-    submitted_variants = ", ".join(add_quotes)
+
     sub_id = response.get('id')
     with engine.begin() as conn:
         # If submission ID exists, update the inca table with it
@@ -94,18 +93,20 @@ def add_submission_id_to_db(response, engine, variants):
         if sub_id:
             conn.execute(
                 text(
-                    f"UPDATE testdirectory.inca SET submission_id = '{sub_id}' "
-                    f"WHERE local_id in ({submitted_variants})"
-                )
-            )
+                    "UPDATE testdirectory.inca SET submission_id = :sub_id "
+                    "WHERE local_id = ANY(:variants)"
+                 ),
+                 {"sub_id": sub_id, "variants": variants}
+             )
         else:
             error = response.get('message')
             conn.execute(
                 text(
-                    f"UPDATE testdirectory.inca SET clinvar_status = 'ERROR: {error}' "
-                    f"WHERE local_id in ({submitted_variants})"
+                    "UPDATE testdirectory.inca SET clinvar_status = :error "
+                    "WHERE local_id = ANY(:variants)"
+                    ),
+                    {"error": f"ERROR: {error}", "variants": variants}
                 )
-            )
 
 
 def select_variants_from_db(organisation_id, engine, submitted, exclude=""):
