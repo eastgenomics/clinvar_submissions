@@ -239,7 +239,7 @@ def main():
             "Checking for duplicate variants... and setting accession_id to 'DUP'"
             )
         if not args.dry_run:
-            db.set_DUP_for_duplicate_null_accession(engine)
+            db.set_DUP_for_germline_duplicates(engine)
         else:
             print("Dry run specified. No changes will be made to the database.")
 
