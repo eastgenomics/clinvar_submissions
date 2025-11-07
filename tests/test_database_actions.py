@@ -75,16 +75,18 @@ class TestDatabaseEngine(unittest.TestCase):
         # Check execute was called once
         mock_conn.execute.assert_called_once()
 
-        # Get the actual SQL text
+        # Get the actual SQL text and params
         call_args = mock_conn.execute.call_args
         sql_text_obj = call_args[0][0]
+        params = call_args[0][1]
+
         actual_sql = str(sql_text_obj).strip()
 
-        expected_sql = (
-            "UPDATE testdirectory.inca SET submission_id = 'SUB123456' "
-            "WHERE local_id in ('uid_12345', 'uid_67890')"
-        )
-        self.assertEqual(actual_sql, expected_sql)
+        # Assert SQL uses parameter placeholders and params supplied
+        self.assertIn("UPDATE testdirectory.inca", actual_sql)
+        self.assertIn("submission_id = :sub_id", actual_sql)
+        self.assertIn("WHERE local_id = ANY(:variants)", actual_sql)
+        self.assertEqual(params, {"sub_id": "SUB123456", "variants": self.variants})
 
     def test_add_submission_id_to_db_if_error_returned(self):
         mock_engine = mock.MagicMock()
@@ -95,17 +97,19 @@ class TestDatabaseEngine(unittest.TestCase):
         db.add_submission_id_to_db(response, mock_engine, self.variants)
         # Check execute was called once
         mock_conn.execute.assert_called_once()
-        
-        # Get the actual SQL text
+
+        # Get the actual SQL text and params
         call_args = mock_conn.execute.call_args
         sql_text_obj = call_args[0][0]
+        params = call_args[0][1]
+
         actual_sql = str(sql_text_obj).strip()
 
-        expected_sql = (
-            "UPDATE testdirectory.inca SET clinvar_status = 'ERROR: No valid "
-            "API key provided' WHERE local_id in ('uid_12345', 'uid_67890')"
-        )
-        self.assertEqual(actual_sql, expected_sql)
+        # Assert SQL uses parameter placeholders and params supplied
+        self.assertIn("UPDATE testdirectory.inca", actual_sql)
+        self.assertIn("clinvar_status = :error", actual_sql)
+        self.assertIn("WHERE local_id = ANY(:variants)", actual_sql)
+        self.assertEqual(params, {"error": "ERROR: No valid API key provided", "variants": self.variants})
 
     def test_add_error_to_db(self):
         # Prepare mock engine and connection
