@@ -85,23 +85,28 @@ def add_submission_id_to_db(response, engine, variants):
     Outputs:
         None, adds data to db
     '''
-    add_quotes = [f"'{x}'" for x in variants]
-    submitted_variants = ", ".join(add_quotes)
+
     sub_id = response.get('id')
     with engine.begin() as conn:
         # If submission ID exists, update the inca table with it
         # Otherwise, update the inca table with an error message
         if sub_id:
             conn.execute(
-                f"UPDATE testdirectory.inca SET submission_id = '{sub_id}' "
-                f"WHERE local_id in ({submitted_variants})"
-            )
+                text(
+                    "UPDATE testdirectory.inca SET submission_id = :sub_id "
+                    "WHERE local_id = ANY(:variants)"
+                 ),
+                 {"sub_id": sub_id, "variants": variants}
+             )
         else:
             error = response.get('message')
             conn.execute(
-                f"UPDATE testdirectory.inca SET clinvar_status = 'ERROR: {error}' "
-                f"WHERE local_id in ({submitted_variants})"
-            )
+                text(
+                    "UPDATE testdirectory.inca SET clinvar_status = :error "
+                    "WHERE local_id = ANY(:variants)"
+                    ),
+                    {"error": f"ERROR: {error}", "variants": variants}
+                )
 
 
 def select_variants_from_db(organisation_id, engine, submitted, exclude=""):
@@ -215,3 +220,29 @@ def add_clinvar_submission_error_to_db(errors, engine):
         # Batch submission which updates each local_id with its error
         conn.execute(query, payload)
 
+
+def set_DUP_for_germline_duplicates(engine):
+    """
+    Set accession_id = 'DUP' for all duplicate germline variants
+    (same hgvsc, preferred_condition_name, organisation_id)
+    where accession_id IS NULL and another duplicate exists with accession_id IS NOT NULL.
+    """
+    query = text("""
+        UPDATE testdirectory.inca i
+        SET accession_id = 'DUP'
+        WHERE i.accession_id IS NULL
+        AND i.interpreted = 'yes'
+        AND i.allele_origin = 'germline'
+          AND EXISTS (
+            SELECT 1
+            FROM testdirectory.inca j
+            WHERE j.hgvsc = i.hgvsc
+              AND j.preferred_condition_name = i.preferred_condition_name
+              AND j.organisation_id = i.organisation_id
+              AND j.accession_id IS NOT NULL
+              AND j.interpreted = 'yes'
+              AND j.allele_origin = 'germline'
+          )
+    """)
+    with engine.begin() as conn:
+        conn.execute(query)
