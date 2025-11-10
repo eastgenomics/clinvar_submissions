@@ -224,7 +224,7 @@ def add_clinvar_submission_error_to_db(errors, engine):
 def set_DUP_for_germline_duplicates(engine):
     """
     Set accession_id = 'DUP' for all duplicate germline variants
-    (same chrom, pos, ref, alt, preferred_condition_name, organisation_id)
+    (same hgvsc, preferred_condition_name, organisation_id)
     where accession_id IS NULL and another duplicate exists with accession_id IS NOT NULL.
     """
     query = text("""
