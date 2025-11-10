@@ -236,10 +236,7 @@ def set_DUP_for_germline_duplicates(engine):
           AND EXISTS (
             SELECT 1
             FROM testdirectory.inca j
-            WHERE j.chromosome = i.chromosome
-              AND j.start = i.start
-              AND j.reference_allele = i.reference_allele
-              AND j.alternate_allele = i.alternate_allele
+            WHERE j.hgvsc = i.hgvsc
               AND j.preferred_condition_name = i.preferred_condition_name
               AND j.organisation_id = i.organisation_id
               AND j.accession_id IS NOT NULL
