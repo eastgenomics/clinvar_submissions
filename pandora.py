@@ -421,7 +421,7 @@ def main():
                 print(f"Submission response: {response.status_code}, {response.text}")
                 if args.clinvar_testing is False:
                     db.add_submission_id_to_db(
-                        response.json(), engine, df["local_id"].values
+                        response.json(), engine, df["local_id"].values.tolist()
                     )
     else:
         print("hold_for_review specified. Variants will not be submitted.")
