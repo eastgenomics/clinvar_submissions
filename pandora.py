@@ -27,7 +27,7 @@ def open_json(file: str) -> dict:
     Outputs:
         contents (dict): the contents of that JSON as a dict
     """
-    with open(file) as f:
+    with open(file, encoding="utf8") as f:
         contents = json.load(f)
     return contents
 
@@ -126,13 +126,13 @@ def validate_output_dir(path_str: str) -> Path:
 
 
 def output_inconsistent_files(
-    missing_data_df, duplicate_data_df, clarity_issues_df, timestamp=None, output_dir=None
+    data_issues_df, clarity_issues_df, timestamp=None, output_dir=None
 ):
     """
     Output any inconsistent files from clarity extract handling for review
     Inputs:
-        missing_data_df (pd.DataFrame): dataframe of samples with missing data
-        duplicate_data_df (pd.DataFrame): dataframe of samples with duplicate data
+        data_issues_df (pd.DataFrame): dataframe of samples with data issues
+        (i.e. no DX data, multiple reports in DX, file does not exist in path)
         clarity_issues_df (pd.DataFrame): dataframe of samples with clarity issues
         timestamp (str): timestamp to append to filenames
         output_dir (str): directory to output inconsistent files to
@@ -146,34 +146,26 @@ def output_inconsistent_files(
         return
 
     # Output any inconsistent files for review
-    if not missing_data_df.empty:
+    if not data_issues_df.empty:
         print(
-            f"{missing_data_df.shape[0]} samples with missing data found in "
-            f"clarity extract. See missing_data_clarity_extract_{timestamp}.csv for details."
+            f"{data_issues_df.shape[0]} samples with data issues found in "
+            f"clarity extract. See data_issues_clarity_extract_{timestamp}.csv for details."
         )
         path_to_missing = os.path.join(
-            output_dir, f"missing_data_clarity_extract_{timestamp}.csv"
+            output_dir, f"data_issues_clarity_extract_{timestamp}.csv"
         )
-        missing_data_df.to_csv(path_to_missing, index=False)
-    if not duplicate_data_df.empty:
-        print(
-            f"{duplicate_data_df.shape[0]} duplicate samples found in "
-            f"clarity extract. See duplicate_data_clarity_extract_{timestamp}.csv for details."
-        )
-        path_to_duplicate = os.path.join(
-            output_dir, f"duplicate_data_clarity_extract_{timestamp}.csv"
-        )
-        duplicate_data_df.to_csv(path_to_duplicate, index=False)
+        data_issues_df.to_csv(path_to_missing, index=False)
+
     if not clarity_issues_df.empty:
         print(
-            f"{clarity_issues_df.shape[0]} samples with clarity issues found in "
-            f"clarity extract. See clarity_issues_clarity_extract_{timestamp}.csv for details."
+            f"{clarity_issues_df.shape[0]} samples with issues found in "
+            f"input clarity extract. See clarity_issues_clarity_extract_{timestamp}.csv for details."
         )
         path_to_clarity_issues = os.path.join(
             output_dir, f"clarity_issues_clarity_extract_{timestamp}.csv"
         )
         clarity_issues_df.to_csv(path_to_clarity_issues, index=False)
-    if missing_data_df.empty and duplicate_data_df.empty and clarity_issues_df.empty:
+    if data_issues_df.empty and clarity_issues_df.empty:
         print("No inconsistent data found.")
 
 
@@ -256,7 +248,9 @@ def main():
         filenames = glob.glob(os.path.join(args.path_to_workbooks, "*.xlsx"))
         # remove any CNV workbooks
         workbooks_to_process = [
-            f for f in filenames if not re.search(r"CNV", f, re.IGNORECASE)
+            f for f in filenames if not re.search(
+                r"(CNV|mosaic)", f, re.IGNORECASE
+            )
         ]
         if not filenames:
             print("No workbooks found in the specified path.")
@@ -276,7 +270,7 @@ def main():
         print(f"Found {len(workbooks_to_process)} workbooks")
         # Output any inconsistent files for review
         output_inconsistent_files(
-            missing_data_df, pd.DataFrame(), pd.DataFrame(), timestamp, args.output_dir
+            missing_data_df, pd.DataFrame(), timestamp, args.output_dir
         )
     elif args.clarity_extract:
         print("Authenticating DNAnexus...")
@@ -291,17 +285,19 @@ def main():
                 "when using clarity extract."
             )
             raise SystemExit(1)
-        clarity_df = pd.DataFrame()
-        missing_data_df = pd.DataFrame()
-        clarity_df, missing_data_df, duplicate_data_df, clarity_issues_df = (
+
+        clarity_df, missing_data_df, clarity_issues_df = (
             clarity_handler.handle_clarity_extract(
                 args.clarity_extract, rd_assays, base_path
             )
         )
         if clarity_df.empty:
             print(
-                "Clarity extract is empty after preprocessing. Skipping "
-                "processing."
+                "Report dataframe generated from Clarity extract is empty "
+                "after preprocessing. Skipping processing."
+            )
+            output_inconsistent_files(
+                missing_data_df, clarity_issues_df, timestamp, args.output_dir
             )
         else:
             if args.use_paths:
@@ -310,23 +306,25 @@ def main():
                 clarity_df, missing_file_paths_df = utils.check_files_exist_and_exclude(
                     clarity_df, "path"
                 )
-                # merge missing data dfs
-                missing_data_df = pd.concat(
-                    [missing_data_df, missing_file_paths_df], ignore_index=True
-                )
-                # remove any CNV workbooks and mosaic workbooks
-                workbooks_to_process = clarity_df["path"].tolist()
+                if not missing_file_paths_df.empty:
+                    missing_data_df = pd.concat(
+                        [missing_data_df, missing_file_paths_df],
+                        ignore_index=True
+                    )
+
+                workbooks_to_process = clarity_df["path"].dropna().tolist()
                 print(f"Found {len(workbooks_to_process)} workbooks")
+
                 # Output any inconsistent files for review
                 output_inconsistent_files(
-                    missing_data_df, duplicate_data_df, clarity_issues_df, timestamp, args.output_dir
+                    missing_data_df, clarity_issues_df, timestamp, args.output_dir
                 )
             else:
                 print(
                     "--use_paths not specified so outputting clarity extract dataframes for review."
                 )
                 print("These can be processed by using --samples_file option.")
-                # Output dataframes for review name after date and input clarity?
+                # Output samples file for review named with timestamp
                 path_to_parsed_clarity = os.path.join(
                     args.output_dir, f"clarity_extract_parsed_paths_{timestamp}.csv"
                 )
@@ -338,7 +336,7 @@ def main():
                     f"Clarity extract parsed paths output to {path_to_parsed_clarity}"
                 )
                 output_inconsistent_files(
-                    missing_data_df, duplicate_data_df, clarity_issues_df, timestamp, args.output_dir
+                    missing_data_df, clarity_issues_df, timestamp, args.output_dir
                 )
 
     # Get previously parsed workbooks

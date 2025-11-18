@@ -95,7 +95,7 @@ def test_create_path_wes():
 def test_create_path_nan():
     """Test path creation with NaN run folder returns None."""
     assert (
-        ceh.create_path("file.xlsx", Path("/mnt/clingen/"), "CEN", float("nan")) is None
+        ceh.create_path("file.xlsx", Path("/mnt/clingen/"), "CEN", pd.NA) is pd.NA
     )
 
 
@@ -108,14 +108,14 @@ def test_create_path_unknown_assay():
             "UNKNOWN",
             "002_251010_A01303_0320_BACWV9DRX7_37_UNKNOWN",
         )
-        is None
+        is pd.NA
     )
 
 
 def test_create_path_short_run_folder():
     """Test path creation with short run folder returns None."""
     assert (
-        ceh.create_path("file.xlsx", Path("/mnt/clingen/"), "CEN", "002_251010") is None
+        ceh.create_path("file.xlsx", Path("/mnt/clingen/"), "CEN", "002_251010") is pd.NA
     )
 
 
@@ -188,6 +188,52 @@ def test_query_reports_for_project_exact_id_match(mock_find_data_objects):
     assert records == expected_list
 
 
+class TestFetchAllReports:
+    """Test fetching all reports in chunks"""
+    def test_fetch_all_reports_success(self):
+        df = pd.DataFrame({"sample_id": ["S1", "S2", "S3"]})
+        fake_projects = {"p1": "Project1"}
+        fake_records = [
+            {"sample_id": "S1", "project_id": "p1", "file_name": "file1.txt"},
+            {"sample_id": "S2", "project_id": "p1", "file_name": "file2.txt"},
+        ]
+
+        with patch("utils.clarity_extract_handler.get_matching_projects", return_value=fake_projects):
+            with patch("utils.clarity_extract_handler.query_reports_for_project", return_value=fake_records):
+                out = ceh.fetch_all_reports(df, assays=["CEN"])
+
+        assert out.shape[0] == 3
+        assert out.loc[out.sample_id == "S1", "file_name"].iloc[0] == "file1.txt"
+        assert out.loc[out.sample_id == "S1", "project_name"].iloc[0] == "Project1"
+
+    def test_fetch_all_reports_no_results(self):
+        df = pd.DataFrame({"sample_id": ["A", "B"]})
+
+        with patch("utils.clarity_extract_handler.get_matching_projects", return_value={"p": "Proj"}):
+            with patch("utils.clarity_extract_handler.query_reports_for_project", return_value=[]):
+                out = ceh.fetch_all_reports(df, assays=["CEN"])
+
+        assert out["file_name"].isna().all()
+        assert out["project_id"].isna().all()
+        assert out["project_name"].isna().all()
+
+    def test_fetch_all_reports_multiple_projects(self):
+        df = pd.DataFrame({"sample_id": ["S1"]})
+
+        fake_projects = {"p1": "Proj1", "p2": "Proj2"}
+
+        fake_records = [
+            {"sample_id": "S1", "project_id": "p1", "file_name": "f1"},
+            {"sample_id": "S1", "project_id": "p2", "file_name": "f2"},
+        ]
+
+        with patch("utils.clarity_extract_handler.get_matching_projects", return_value=fake_projects):
+            with patch("utils.clarity_extract_handler.query_reports_for_project", return_value=fake_records):
+                out = ceh.fetch_all_reports(df, assays=["CEN"])
+
+        # S1 should be removed entirely
+        assert out.empty
+
 class TestExtractAssayFromFilename:
     """Test extracting assay from filename."""
 
@@ -198,10 +244,10 @@ class TestExtractAssayFromFilename:
         assert ceh.extract_assay_from_filename("file_WES_123.xlsx") == "WES"
 
     def test_no_assay(self):
-        assert ceh.extract_assay_from_filename("file_123.xlsx") is None
+        assert ceh.extract_assay_from_filename("file_123.xlsx") is pd.NA
 
     def test_unknown_assay(self):
-        assert ceh.extract_assay_from_filename("file_UNKNOWN_123.xlsx") is None
+        assert ceh.extract_assay_from_filename("file_UNKNOWN_123.xlsx") is pd.NA
 
 
 class TestRCodeMatching:
@@ -379,6 +425,10 @@ class TestPreProcessClarityExtract:
                 "Test Directory Test Code": [pd.NA, pd.NA],
                 "sample_id": ["250128R0042", "250129R0043"],
                 "R_codes": [[], []],
+                "issue": [
+                    "Missing or multiple R codes in Clarity extract",
+                    "Missing or multiple R codes in Clarity extract"
+                ]
             }
         )
         pd.testing.assert_frame_equal(clarity_issues_df, expected_issues_df)
@@ -409,10 +459,14 @@ class TestPreProcessClarityExtract:
         expected_issues_df = pd.DataFrame(
             {
                 "Beaker Procedure Name": ["WES NGS"] * 2,
-                "Specimen Identifier": ["SP-250129R0043", "SP-250128R0042"],
-                "Test Directory Test Code": [pd.NA, "R208.1|R209.1"],
-                "sample_id": ["250129R0043", "250128R0042"],
-                "R_codes": [[], ["R208", "R209"]],
+                "Specimen Identifier": ["SP-250128R0042", "SP-250129R0043"],
+                "Test Directory Test Code": ["R208.1|R209.1", pd.NA],
+                "sample_id": ["250128R0042", "250129R0043"],
+                "R_codes": [["R208", "R209"], []],
+                "issue": [
+                    "Missing or multiple R codes in Clarity extract",
+                    "Missing or multiple R codes in Clarity extract"
+                ]
             }
         )
 
@@ -449,27 +503,63 @@ class TestPreprocessReportDf:
 
         pd.testing.assert_frame_equal(processed_df, expected_df)
 
+    def test_preprocess_report_df_no_dx_data(self):
+        example_df = pd.DataFrame(
+            {
+                "sample_id": [pd.NA],
+                "R_codes": ["R59"],
+                "file_name": [pd.NA],
+                "project_id": [pd.NA],
+                "project_name": [pd.NA],
+            }
+        )
+        base_path = "/test_workbooks/"
+        processed_df = ceh.preprocess_report_df(example_df, base_path)
+
+        expected_df = pd.DataFrame(
+            {
+                "sample_id": [pd.NA],
+                "R_codes": ["R59"],
+                "file_name": [pd.NA],
+                "project_id": [pd.NA],
+                "project_name": [pd.NA],
+                "Assay": [pd.NA],
+                "path": [pd.NA],
+                "instrument_id": [pd.NA],
+                "full_sample_id": [pd.NA],
+                "report_r_code": [pd.NA],
+            }
+        )
+
+        pd.testing.assert_frame_equal(processed_df, expected_df)
+
 
 class TestFilteringReports:
     """Test filtering of reports DataFrame."""
-    def test_filtering_reports_cnv_code(self):
+    def test_filtering_one_report_with_matching_r_code(self):
         example_df = pd.DataFrame(
             {
                 "file_name": [
-                    "129740957-24123R0014-24NGCEN42-9527-F-99347389_R228.1_SNV_1.xlsx",
-                    "129740957-24123R0014-24NGCEN42-9527-F-99347389_R228.1_CNV_1.xlsx",
+                    "129740958-24123R0015-24NGCEN42-9527-F-99347390_R228.1_SNV_1.xlsx",
                 ],
                 "sample_id": [
-                    "24123R0014",
-                    "24123R0014",
+                    "24123R0015",
                 ],
                 "report_r_code": [
-                    "R228.1",
                     "R228.1",
                 ],
                 "R_codes": [
                     ["R228"],
-                    ["R228"]
+                ],
+                "project_id": ["project-x"],
+                "project_name": [
+                    "002_251117_test_38_CEN"
+                ],
+                "Assay": ["CEN"],
+                "path": ["test"],
+                "instrument_id": ["129740958"],
+                "full_sample_id": [
+                    "129740958-24123R0015"
                 ]
             }
         )
@@ -479,31 +569,49 @@ class TestFilteringReports:
         expected_filtered_df = pd.DataFrame(
             {
                 "file_name": [
-                    "129740957-24123R0014-24NGCEN42-9527-F-99347389_R228.1_SNV_1.xlsx",
+                    "129740958-24123R0015-24NGCEN42-9527-F-99347390_R228.1_SNV_1.xlsx",
                 ],
                 "sample_id": [
-                    "24123R0014",
+                    "24123R0015",
                 ],
                 "report_r_code": [
                     "R228.1",
                 ],
                 "R_codes": [
-                    ["R228"]
+                    ["R228"],
                 ],
+                "project_id": ["project-x"],
+                "project_name": [
+                    "002_251117_test_38_CEN"
+                ],
+                "Assay": ["CEN"],
+                "path": ["test"],
+                "instrument_id": ["129740958"],
+                "full_sample_id": [
+                    "129740958-24123R0015"
+                ]
             }
         )
+
+        pd.testing.assert_frame_equal(filtered_df, expected_filtered_df)
 
         expected_missing_data_df = pd.DataFrame({
             'file_name': pd.Series(dtype='object'),
             'sample_id': pd.Series(dtype='object'),
             'report_r_code': pd.Series(dtype='object'),
-            'R_codes': pd.Series(dtype='object')
+            'R_codes': pd.Series(dtype='object'),
+            'project_id': pd.Series(dtype='object'),
+            'project_name': pd.Series(dtype='object'),
+            'Assay': pd.Series(dtype='object'),
+            'path': pd.Series(dtype='object'),
+            'instrument_id': pd.Series(dtype='object'),
+            'full_sample_id': pd.Series(dtype='object'),
+            "issue": pd.Series(dtype='object')
         })
 
-        pd.testing.assert_frame_equal(filtered_df, expected_filtered_df)
         pd.testing.assert_frame_equal(missing_data_df, expected_missing_data_df)
 
-    def test_filtering_r_code_mismatch(self):
+    def test_filtering_multiple_reports_one_matches_clarity_r_code(self):
         example_df = pd.DataFrame(
             {
                 "file_name": [
@@ -521,6 +629,16 @@ class TestFilteringReports:
                 "R_codes": [
                     ["R228"],
                     ["R228"]
+                ],
+                "project_id": ["project-x", "project-y"],
+                "project_name": [
+                    "002_251117_test_38_CEN", "002_251112_test_38_TWE"
+                ],
+                "Assay": ["CEN", "TWE"],
+                "path": ["test", "test"],
+                "instrument_id": ["129740958", "129740958"],
+                "full_sample_id": [
+                    "129740958-24123R0015", "129740958-24123R0015"
                 ]
             }
         )
@@ -531,19 +649,95 @@ class TestFilteringReports:
             'file_name': ["129740958-24123R0015-24NGCEN42-9527-F-99347390_R228.1_SNV_1.xlsx"],
             'sample_id': ["24123R0015"],
             'report_r_code': ["R228.1"],
-            'R_codes': [["R228"]]
+            'R_codes': [["R228"]],
+            "project_id": ["project-x"],
+            "project_name": ["002_251117_test_38_CEN"],
+            "Assay": ["CEN"],
+            "path": ["test"],
+            "instrument_id": ["129740958"],
+            "full_sample_id": ["129740958-24123R0015"]
         })
 
         pd.testing.assert_frame_equal(filtered_df, expected_filtered_df)
+
+        expected_missing_data_df = pd.DataFrame({
+            'file_name': pd.Series(dtype='object'),
+            'sample_id': pd.Series(dtype='object'),
+            'report_r_code': pd.Series(dtype='object'),
+            'R_codes': pd.Series(dtype='object'),
+            'project_id': pd.Series(dtype='object'),
+            'project_name': pd.Series(dtype='object'),
+            'Assay': pd.Series(dtype='object'),
+            'path': pd.Series(dtype='object'),
+            'instrument_id': pd.Series(dtype='object'),
+            'full_sample_id': pd.Series(dtype='object'),
+            "issue": pd.Series(dtype='object')
+        })
+
+        pd.testing.assert_frame_equal(missing_data_df, expected_missing_data_df)
+
+    def test_filtering_multiple_reports_none_match_clarity_r_code(self):
+        example_df = pd.DataFrame(
+            {
+                "file_name": [
+                    "129740958-24123R0015-24NGCEN42-9527-F-99347390_R149.1_SNV_1.xlsx",
+                ],
+                "sample_id": [
+                    "24123R0015",
+                ],
+                "report_r_code": [
+                    "R149.1",
+                ],
+                "R_codes": [
+                    ["R228"],
+                ],
+                "project_id": ["project-x"],
+                "project_name": [
+                    "002_251117_test_38_CEN"
+                ],
+                "Assay": ["CEN"],
+                "path": ["test"],
+                "instrument_id": ["129740958"],
+                "full_sample_id": [
+                    "129740958-24123R0015"
+                ]
+            }
+        )
+
+        filtered_df, missing_data_df = ceh.filtering_reports(example_df)
 
         expected_filtered_df = pd.DataFrame({
             'file_name': pd.Series(dtype='object'),
             'sample_id': pd.Series(dtype='object'),
             'report_r_code': pd.Series(dtype='object'),
-            'R_codes': pd.Series(dtype='object')
+            'R_codes': pd.Series(dtype='object'),
+            'project_id': pd.Series(dtype='object'),
+            'project_name': pd.Series(dtype='object'),
+            'Assay': pd.Series(dtype='object'),
+            'path': pd.Series(dtype='object'),
+            'instrument_id': pd.Series(dtype='object'),
+            'full_sample_id': pd.Series(dtype='object'),
         })
 
-        pd.testing.assert_frame_equal(missing_data_df, expected_filtered_df)
+        pd.testing.assert_frame_equal(filtered_df, expected_filtered_df)
+
+        expected_missing_data_df = pd.DataFrame({
+            'file_name': [
+                "129740958-24123R0015-24NGCEN42-9527-F-99347390_R149.1_SNV_1.xlsx"
+            ],
+            'sample_id': ["24123R0015"],
+            'report_r_code': ["R149.1"],
+            'R_codes': [["R228"]],
+            "project_id": ["project-x"],
+            "project_name": ["002_251117_test_38_CEN"],
+            "Assay": ["CEN"],
+            "path": ["test"],
+            "instrument_id": ["129740958"],
+            "full_sample_id": ["129740958-24123R0015"],
+            "issue": "R code mismatch"
+        })
+
+        pd.testing.assert_frame_equal(missing_data_df, expected_missing_data_df)
 
     def test_filtering_no_filename(self):
         example_df = pd.DataFrame(
@@ -559,7 +753,13 @@ class TestFilteringReports:
                 ],
                 "R_codes": [
                     ["R228"],
-                ]
+                ],
+                "project_id": [pd.NA],
+                "project_name": [pd.NA],
+                "Assay": [pd.NA],
+                "path": [pd.NA],
+                "instrument_id": [pd.NA],
+                "full_sample_id": [pd.NA]
             }
         )
 
@@ -568,7 +768,13 @@ class TestFilteringReports:
             'file_name': pd.Series(dtype='object'),
             'sample_id': pd.Series(dtype='object'),
             'report_r_code': pd.Series(dtype='object'),
-            'R_codes': pd.Series(dtype='object')
+            'R_codes': pd.Series(dtype='object'),
+            'project_id': pd.Series(dtype='object'),
+            'project_name': pd.Series(dtype='object'),
+            'Assay': pd.Series(dtype='object'),
+            'path': pd.Series(dtype='object'),
+            'instrument_id': pd.Series(dtype='object'),
+            'full_sample_id': pd.Series(dtype='object'),
         })
 
         pd.testing.assert_frame_equal(filtered_df, expected_filtered_df)
@@ -579,6 +785,78 @@ class TestFilteringReports:
                 "sample_id": ["24123R0015"],
                 "report_r_code": [pd.NA],
                 "R_codes": [["R228"]],
+                "project_id": [pd.NA],
+                "project_name": [pd.NA],
+                "Assay": [pd.NA],
+                "path": [pd.NA],
+                "instrument_id": [pd.NA],
+                "full_sample_id": [pd.NA],
+                "issue": [
+                    "No DNAnexus data or cannot parse fields from DNAnexus data"
+                ]
+            }
+        )
+
+        pd.testing.assert_frame_equal(missing_data_df, expected_missing_data_df)
+
+    def test_filtering_multiple_reports_same_r_code(self):
+        example_df = pd.DataFrame(
+            {
+                "file_name": [
+                    "129740959-24123R0016-24NGCEN42-9527-F-99347390_R149.1_SNV_1.xlsx",
+                    "129740959-24123R0016-24NGCEN42-9527-F-99347390_R149.1_SNV_1.xlsx"
+                ],
+                "sample_id": ["24123R0016", "24123R0016"],
+                "report_r_code": [
+                    "R149.1", "R149.1"
+                ],
+                "R_codes": [
+                    ["R149"], ["R149"],
+                ],
+                "project_id": ["project-x", "project-x"],
+                "project_name": ["002_251117_XXX_CEN", "002_251117_XXX_CEN"],
+                "Assay": ["CEN", "CEN"],
+                "path": ["test", "test"],
+                "instrument_id": ["129740959", "129740959"],
+                "full_sample_id": ["129740959-24123R0016", "129740959-24123R0016"]
+            }
+        )
+
+        filtered_df, missing_data_df = ceh.filtering_reports(example_df)
+        expected_filtered_df = pd.DataFrame({
+            'file_name': pd.Series(dtype='object'),
+            'sample_id': pd.Series(dtype='object'),
+            'report_r_code': pd.Series(dtype='object'),
+            'R_codes': pd.Series(dtype='object'),
+            'project_id': pd.Series(dtype='object'),
+            'project_name': pd.Series(dtype='object'),
+            'Assay': pd.Series(dtype='object'),
+            'path': pd.Series(dtype='object'),
+            'instrument_id': pd.Series(dtype='object'),
+            'full_sample_id': pd.Series(dtype='object'),
+        })
+
+        pd.testing.assert_frame_equal(filtered_df, expected_filtered_df)
+
+        expected_missing_data_df = pd.DataFrame(
+            {
+                "file_name": [
+                    "129740959-24123R0016-24NGCEN42-9527-F-99347390_R149.1_SNV_1.xlsx",
+                ],
+                "sample_id": ["24123R0016"],
+                "report_r_code": [
+                    "R149.1"
+                ],
+                "R_codes": [
+                    ["R149"],
+                ],
+                "project_id": ["project-x"],
+                "project_name": ["002_251117_XXX_CEN"],
+                "Assay": ["CEN"],
+                "path": ["test"],
+                "instrument_id": ["129740959"],
+                "full_sample_id": ["129740959-24123R0016"],
+                "issue": ["Multiple reports"]
             }
         )
 
