@@ -132,6 +132,7 @@ def output_inconsistent_files(
     Output any inconsistent files from clarity extract handling for review
     Inputs:
         data_issues_df (pd.DataFrame): dataframe of samples with data issues
+        (i.e. no DX data, multiple reports in DX, file does not exist in path)
         clarity_issues_df (pd.DataFrame): dataframe of samples with clarity issues
         timestamp (str): timestamp to append to filenames
         output_dir (str): directory to output inconsistent files to
@@ -148,10 +149,10 @@ def output_inconsistent_files(
     if not data_issues_df.empty:
         print(
             f"{data_issues_df.shape[0]} samples with data issues found in "
-            f"clarity extract. See data_issues_clarity_extract_{timestamp}.csv for details."
+            f"clarity extract. See data_issues_{timestamp}.csv for details."
         )
         path_to_missing = os.path.join(
-            output_dir, f"data_issues_clarity_extract_{timestamp}.csv"
+            output_dir, f"data_issues_{timestamp}.csv"
         )
         data_issues_df.to_csv(path_to_missing, index=False)
 
