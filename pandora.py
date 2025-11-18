@@ -149,10 +149,10 @@ def output_inconsistent_files(
     if not data_issues_df.empty:
         print(
             f"{data_issues_df.shape[0]} samples with data issues found in "
-            f"clarity extract. See data_issues_{timestamp}.csv for details."
+            f"clarity extract. See data_issues_clarity_extract_{timestamp}.csv for details."
         )
         path_to_missing = os.path.join(
-            output_dir, f"data_issues_{timestamp}.csv"
+            output_dir, f"data_issues_clarity_extract_{timestamp}.csv"
         )
         data_issues_df.to_csv(path_to_missing, index=False)
 
