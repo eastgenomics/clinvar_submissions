@@ -247,7 +247,9 @@ def main():
         filenames = glob.glob(os.path.join(args.path_to_workbooks, "*.xlsx"))
         # remove any CNV workbooks
         workbooks_to_process = [
-            f for f in filenames if not re.search(r"CNV", f, re.IGNORECASE)
+            f for f in filenames if not re.search(
+                r"(CNV|mosaic)", f, re.IGNORECASE
+            )
         ]
         if not filenames:
             print("No workbooks found in the specified path.")
