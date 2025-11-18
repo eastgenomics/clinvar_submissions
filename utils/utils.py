@@ -33,9 +33,9 @@ def dx_login(dnanexus_token: str) -> None:
 
     try:
         dxpy.api.system_whoami()
-        print("DNANexus authentication successful.")
+        print("DNAnexus authentication successful.")
     except Exception as e:
-        print("DNANexus authentication failed.")
+        print("DNAnexus authentication failed.")
         print(e)
     return
 
@@ -665,11 +665,18 @@ def check_files_exist_and_exclude(samples_df: pd.DataFrame, path_column: str) ->
     if samples_df.empty:
         print("No samples to check.")
         return samples_df, pd.DataFrame()
+
     samples_df["file_exists"] = samples_df[path_column].apply(check_file_exists)
     missing_files_df = samples_df[~samples_df["file_exists"]]
-    print(f"Found {missing_files_df.shape[0]} missing files.")
-    if not missing_files_df.empty:
-        print(missing_files_df[["file_name", f"{path_column}"]])
+    missing_files_df["issue"] = 'File does not exist in path'
+    missing_files_df = missing_files_df.drop(columns=["file_exists"])
+
+    print(
+        f"Found {missing_files_df.shape[0]} files with reports missing in the "
+        "path provided."
+    )
+
     samples_df = samples_df[samples_df["file_exists"]].copy()
     df_filtered = samples_df.drop(columns=["file_exists"])
+
     return df_filtered, missing_files_df
