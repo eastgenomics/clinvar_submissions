@@ -379,11 +379,11 @@ def filtering_reports(report_df):
 
     Outputs:
         filtered_df (pd.DataFrame): Filtered DataFrame
-        missing_data_df (pd.DataFrame): DataFrame containing rows with samples
+        data_issues_df (pd.DataFrame): DataFrame containing rows with samples
         with DNAnexus data issues.
     """
     ## Remove and report rows with no DX data
-    missing_data_df = pd.DataFrame(
+    data_issues_df = pd.DataFrame(
         columns=report_df.columns.tolist() + ["issue"]
     )
     required = [
@@ -396,8 +396,8 @@ def filtering_reports(report_df):
         missing_rows["issue"] = (
             "No DNAnexus data or cannot parse fields from DNAnexus data"
         )
-        missing_data_df = pd.concat(
-            [missing_data_df, missing_rows], ignore_index=True
+        data_issues_df = pd.concat(
+            [data_issues_df, missing_rows], ignore_index=True
         )
 
     # Keep only rows with all required data
@@ -407,7 +407,7 @@ def filtering_reports(report_df):
     if working_df.empty:
         return (
             pd.DataFrame(columns=report_df.columns),
-            missing_data_df
+            data_issues_df
         )
 
     ## Remove and report rows where the R code in DX doesn't match
@@ -421,8 +421,8 @@ def filtering_reports(report_df):
     if not rcode_mismatch.empty:
         rcode_mismatch["issue"] = "R code mismatch"
         rcode_mismatch = rcode_mismatch.drop(columns=["rcode_match"], errors="ignore")
-        missing_data_df = pd.concat(
-            [missing_data_df, rcode_mismatch], ignore_index=True
+        data_issues_df = pd.concat(
+            [data_issues_df, rcode_mismatch], ignore_index=True
         )
 
     # Keep only rows with matching R_code, if empty return
@@ -431,7 +431,7 @@ def filtering_reports(report_df):
     if working_df.empty:
         return (
             pd.DataFrame(columns=report_df.columns),
-            missing_data_df
+            data_issues_df
         )
 
     # Remove rows where there's multiple SNV reports per sample for same R
@@ -454,8 +454,8 @@ def filtering_reports(report_df):
             columns=["dup_count"], errors="ignore"
         )
 
-        missing_data_df = pd.concat(
-            [missing_data_df, one_issue_row_per_sample],
+        data_issues_df = pd.concat(
+            [data_issues_df, one_issue_row_per_sample],
             ignore_index=True
         )
 
@@ -469,7 +469,7 @@ def filtering_reports(report_df):
     if filtered_df.empty:
         filtered_df = pd.DataFrame(columns=report_df.columns)
 
-    return filtered_df, missing_data_df
+    return filtered_df, data_issues_df
 
 
 def preprocess_report_df(report_df, base_path):
@@ -521,7 +521,7 @@ def handle_clarity_extract(
         base_path (str): base path to clingen folder
     Outputs:
         report_df_filtered (pd.DataFrame): DataFrame of workbooks to process
-        missing_data_df (pd.DataFrame): DataFrame of workbooks with data issues
+        data_issues_df (pd.DataFrame): DataFrame of workbooks with data issues
         clarity_issues_df (pd.DataFrame): DataFrame of samples with clarity issues
     """
     # Read data into dataframes
@@ -552,9 +552,9 @@ def handle_clarity_extract(
 
     # Filter out all rows with no DX data, no reports matching the R code
     # or multiple reports for same R code
-    filtered_df, missing_data_df = filtering_reports(report_df)
+    filtered_df, data_issues_df = filtering_reports(report_df)
     print(
         f"Total reports remaining after filtering: {filtered_df.shape[0]}"
     )
 
-    return filtered_df, missing_data_df, clarity_issues_df
+    return filtered_df, data_issues_df, clarity_issues_df
