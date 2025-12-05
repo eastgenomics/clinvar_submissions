@@ -1,3 +1,12 @@
 /tests
 *.png
 *.md
+uv.lock
+*.json
+*.log
+*.tmp
+*.tar.gz
+/data
+/appdata
+*.csv
+*.toml

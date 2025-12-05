@@ -8,6 +8,8 @@
     "Collection method": "clinical testing",
     "Allele origin": "germline",
     "Affected status": "yes",
+    "rare_disease_assays": ["CEN", "TWE"],
+    "base_path": "/appdata/clingen/cg/Regional Genetics Laboratories/Molecular Genetics/Data archive/Sequencing HT/",
     "CUH folder": "CUH",
     "NUH folder": "NUH",
     "CUH org ID": 288359,
@@ -255,7 +257,7 @@
         "PVS": "Very Strong",
         "PS": "Strong",
         "PM": "Moderate",
-        "PP": "Supporting",    
+        "PP": "Supporting",
         "BS": "Supporting",
         "BA": "Stand-Alone",
         "BP": "Supporting"

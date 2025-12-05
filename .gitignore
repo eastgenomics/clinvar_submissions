@@ -1,1 +1,10 @@
 *.pyc
+/*.csv
+/data/
+*.log
+*.db
+*.sqlite3
+log.txt
+*.tar.gz
+.coverage
+*.json

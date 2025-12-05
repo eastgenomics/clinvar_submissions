@@ -1,24 +1,23 @@
-import pandas as pd
 import requests
 import json
 from requests.adapters import HTTPAdapter, Retry
-from utils.database_actions import add_clinvar_submission_error_to_db
+from typing import List, Dict, Any, Tuple
 
-def extract_clinvar_information(variant_row, ref_genomes):
+def extract_clinvar_information(variant_row, ref_genomes: list) -> dict:
     '''
     Extract information from Shire variant record and reformat into dictionary
     Inputs:
         variant: row from variant dataframe with data for one variant
-        ref_genomes (list): list of valid reference genome values from config 
+        ref_genomes (list): list of valid reference genome values from config
     outputs:
-        clinvar_dict: dictionary of data to submit to clinvar
+        clinvar_dict (dict): dictionary of data to submit to clinvar
     '''
     if variant_row["ref_genome"] not in ref_genomes:
         raise ValueError("Invalid genome build")
 
     assembly = variant_row["ref_genome"].split('.')[0]
 
-    clinvar_dict = {
+    clinvar_dict: dict = {
             'clinicalSignificance': {
                 'clinicalSignificanceDescription': variant_row["germline_classification"],
                 'comment': variant_row["comment_on_classification"],
@@ -54,15 +53,15 @@ def extract_clinvar_information(variant_row, ref_genomes):
     return clinvar_dict
 
 
-def collect_clinvar_data_to_submit(clinvar_df, ref_genomes):
+def collect_clinvar_data_to_submit(clinvar_df, ref_genomes) -> List:
     '''
     Cycle through a dataframe, and extract variants for each row. Call the
     function to reformat this into a dictionary for submission to ClinVar and
     return a list of these dictionaries
-    Inputs
+    Inputs:
         clinvar_df (pandas.Dataframe): variant dataframe
         ref_genomes (list): list of valid reference genome values from config
-    Outputs
+    Outputs:
         variants (list): list of dictionaries with variant data for submission
         to ClinVar
     '''
@@ -74,7 +73,7 @@ def collect_clinvar_data_to_submit(clinvar_df, ref_genomes):
     return variants
 
 
-def create_header(api_key):
+def create_header(api_key: str) -> Dict[str, str]:
     '''
     Format header for ClinVar API submission
     Inputs:
@@ -89,7 +88,14 @@ def create_header(api_key):
     return header
 
 
-def clinvar_api_request(url, header, var_list, org_guidelines_url, print_json):
+def clinvar_api_request(
+    url: str,
+    header: Dict[str, str],
+    var_list: List[Dict[str, Any]],
+    org_guidelines_url: str,
+    print_json: bool,
+    no_retry_option: bool = False
+) -> requests.Response:
     '''
     Make request to the ClinVar API endpoint specified.
     Inputs:
@@ -100,6 +106,9 @@ def clinvar_api_request(url, header, var_list, org_guidelines_url, print_json):
         different for CUH and NUH.
         print_json (boolean): controls whether or not to print each submission
         JSON
+    no_retry_option (boolean): if True, no retries will be attempted on
+        connection errors; if False, will retry up to 10 times with a backoff
+        factor of 0.5 seconds.
     Returns:
         response: API response object
     '''
@@ -125,16 +134,19 @@ def clinvar_api_request(url, header, var_list, org_guidelines_url, print_json):
         print(json.dumps(clinvar_data, indent=4, default=str))
 
     s = requests.Session()
-    retries = Retry(total=10, backoff_factor=0.5)
+    if no_retry_option:
+        retries = Retry(total=0)
+    else:
+        retries = Retry(total=10, backoff_factor=0.5)
     s.mount('https://', HTTPAdapter(max_retries=retries))
     response = s.post(url, data=json.dumps(clinvar_data, default=str), headers=header)
     return response
 
 
-def process_submission_status(status, response):
+def process_submission_status(status: str, response: dict) -> Tuple[dict, dict]:
     '''
     Process response to API query about submission status.
-    Inputs
+    Inputs:
         status (str): Overall submission status
         response (dict): API response, which is a breakdown the response for
         each variant or errors if submission failed.
