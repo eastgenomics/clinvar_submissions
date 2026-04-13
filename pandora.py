@@ -37,8 +37,7 @@ def parse_args() -> argparse.Namespace:
     Parse command line arguments
     """
     parser = argparse.ArgumentParser(
-        description="",
-        formatter_class=(argparse.ArgumentDefaultsHelpFormatter),
+        description="", formatter_class=(argparse.ArgumentDefaultsHelpFormatter)
     )
     parser.add_argument(
         "--clinvar_api_key",
@@ -58,10 +57,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--hold_for_review",
         action="store_true",
-        help=(
-            "Boolean determining whether to hold submission of variants, "
-            "allowing for manual review in the db before submission."
-        ),
+        help="Boolean determining whether to hold submission of variants, "
+        "allowing for manual review in the db before submission.",
     )
     parser.add_argument(
         "--db_credentials",
@@ -78,9 +75,7 @@ def parse_args() -> argparse.Namespace:
         help="Path to file containing Excel paths to workbooks in clingen",
     )
     parser.add_argument(
-        "--config",
-        required=True,
-        help="JSON config file containing required inputs",
+        "--config", required=True, help="JSON config file containing required inputs"
     )
     parser.add_argument(
         "--organisation",
@@ -91,15 +86,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--dry_run",
         action="store_true",
-        help=(
-            "Run the script without making any changes "
-            "to the database or submitting to ClinVar"
-        ),
+        help="Run the script without making any changes "
+        "to the database or submitting to ClinVar",
     )
     parser.add_argument(
-        "--no_retry",
-        action="store_true",
-        help="Do not retry failed submissions",
+        "--no_retry", action="store_true", help="Do not retry failed submissions"
     )
     parser.add_argument(
         "--use_paths",
@@ -157,9 +148,8 @@ def output_inconsistent_files(
     # Output any inconsistent files for review
     if not data_issues_df.empty:
         print(
-            f"{data_issues_df.shape[0]} samples with data issues found in"
-            " clarity extract. See"
-            f" data_issues_clarity_extract_{timestamp}.csv for details."
+            f"{data_issues_df.shape[0]} samples with data issues found in "
+            f"clarity extract. See data_issues_clarity_extract_{timestamp}.csv for details."
         )
         path_to_missing = os.path.join(
             output_dir, f"data_issues_clarity_extract_{timestamp}.csv"
@@ -168,9 +158,8 @@ def output_inconsistent_files(
 
     if not clarity_issues_df.empty:
         print(
-            f"{clarity_issues_df.shape[0]} samples with issues found in input"
-            " clarity extract. See"
-            f" clarity_issues_clarity_extract_{timestamp}.csv for details."
+            f"{clarity_issues_df.shape[0]} samples with issues found in "
+            f"input clarity extract. See clarity_issues_clarity_extract_{timestamp}.csv for details."
         )
         path_to_clarity_issues = os.path.join(
             output_dir, f"clarity_issues_clarity_extract_{timestamp}.csv"
@@ -222,12 +211,8 @@ def main():
     else:
         # Identify cases in database which have a submission ID but no accession ID
         print("Searching for variants with no accession ID...")
-        cuh_submission_df = db.select_variants_from_db(
-            "288359", engine, "NOT NULL"
-        )
-        nuh_submission_df = db.select_variants_from_db(
-            "509428", engine, "NOT NULL"
-        )
+        cuh_submission_df = db.select_variants_from_db("288359", engine, "NOT NULL")
+        nuh_submission_df = db.select_variants_from_db("509428", engine, "NOT NULL")
 
         print(
             f"Found {nuh_submission_df.shape[0]} with submission IDs but no "
@@ -263,9 +248,9 @@ def main():
         filenames = glob.glob(os.path.join(args.path_to_workbooks, "*.xlsx"))
         # remove any CNV workbooks
         workbooks_to_process = [
-            f
-            for f in filenames
-            if not re.search(r"(CNV|mosaic)", f, re.IGNORECASE)
+            f for f in filenames if not re.search(
+                r"(CNV|mosaic)", f, re.IGNORECASE
+            )
         ]
         if not filenames:
             print("No workbooks found in the specified path.")
@@ -280,9 +265,7 @@ def main():
         )
         # remove any CNV workbooks and mosaic workbooks
         workbooks_to_process = samples_df[
-            ~samples_df["file_name"].str.contains(
-                "CNV|mosaic", case=False, na=False
-            )
+            ~samples_df["file_name"].str.contains("CNV|mosaic", case=False, na=False)
         ]["path"].tolist()
         print(f"Found {len(workbooks_to_process)} workbooks")
         # Output any inconsistent files for review
@@ -320,13 +303,13 @@ def main():
             if args.use_paths:
                 print("Using paths from clarity extract directly.")
                 # Check files exist and exclude any that don't
-                clarity_df, missing_file_paths_df = (
-                    utils.check_files_exist_and_exclude(clarity_df, "path")
+                clarity_df, missing_file_paths_df = utils.check_files_exist_and_exclude(
+                    clarity_df, "path"
                 )
                 if not missing_file_paths_df.empty:
                     missing_data_df = pd.concat(
                         [missing_data_df, missing_file_paths_df],
-                        ignore_index=True,
+                        ignore_index=True
                     )
 
                 workbooks_to_process = clarity_df["path"].dropna().tolist()
@@ -334,45 +317,32 @@ def main():
 
                 # Output any inconsistent files for review
                 output_inconsistent_files(
-                    missing_data_df,
-                    clarity_issues_df,
-                    timestamp,
-                    args.output_dir,
+                    missing_data_df, clarity_issues_df, timestamp, args.output_dir
                 )
             else:
                 print(
-                    "--use_paths not specified so outputting clarity extract"
-                    " dataframes for review."
+                    "--use_paths not specified so outputting clarity extract dataframes for review."
                 )
                 print("These can be processed by using --samples_file option.")
                 # Output samples file for review named with timestamp
                 path_to_parsed_clarity = os.path.join(
-                    args.output_dir,
-                    f"clarity_extract_parsed_paths_{timestamp}.csv",
+                    args.output_dir, f"clarity_extract_parsed_paths_{timestamp}.csv"
                 )
                 clarity_df.to_csv(
                     path_to_parsed_clarity,
                     index=False,
                 )
                 print(
-                    "Clarity extract parsed paths output to"
-                    f" {path_to_parsed_clarity}"
+                    f"Clarity extract parsed paths output to {path_to_parsed_clarity}"
                 )
                 output_inconsistent_files(
-                    missing_data_df,
-                    clarity_issues_df,
-                    timestamp,
-                    args.output_dir,
+                    missing_data_df, clarity_issues_df, timestamp, args.output_dir
                 )
 
     # Get previously parsed workbooks
-    parsed_workbook_df = db.select_workbooks_from_db(
-        engine, "parse_status = TRUE"
-    )
+    parsed_workbook_df = db.select_workbooks_from_db(engine, "parse_status = TRUE")
     parsed_list = parsed_workbook_df["workbook_name"].values
-    failed_parsing_df = db.select_workbooks_from_db(
-        engine, "parse_status = FALSE"
-    )
+    failed_parsing_df = db.select_workbooks_from_db(engine, "parse_status = FALSE")
     failed_list = failed_parsing_df["workbook_name"].values
 
     # Process workbooks
@@ -399,9 +369,7 @@ def main():
                 continue
             # If we reach this point, we have valid data
             if args.dry_run:
-                print(
-                    f"Parsed data:\n{df.head()}\n{df.shape[0]} rows in total."
-                )
+                print(f"Parsed data:\n{df.head()}\n{df.shape[0]} rows in total.")
                 df = None
             else:
                 if not df.empty:
@@ -420,21 +388,17 @@ def main():
 
         if not args.dry_run:
             print(
-                "Checking for duplicate variants... and setting accession_id"
-                " to 'DUP'"
+            "Checking for duplicate variants... and setting accession_id to 'DUP'"
             )
             db.set_DUP_for_germline_duplicates(engine)
         else:
-            print(
-                "Dry run specified. No changes will be made to the database."
-            )
+            print("Dry run specified. No changes will be made to the database.")
 
         cuh_df = db.select_variants_from_db("288359", engine, "NULL", exclude)
         nuh_df = db.select_variants_from_db("509428", engine, "NULL", exclude)
         print(
-            f"Found {nuh_df.shape[0]} interpreted variants to submit for"
-            f" NUH.\nFound {cuh_df.shape[0]} interpreted variants to submit"
-            " for CUH."
+            f"Found {nuh_df.shape[0]} interpreted variants to submit for NUH.\n"
+            f"Found {cuh_df.shape[0]} interpreted variants to submit for CUH."
         )
         cuh_df.url, cuh_df.header = config.get("CUH_acgs_url"), cuh_header
         nuh_df.url, nuh_df.header = config.get("NUH_acgs_url"), nuh_header
@@ -447,8 +411,8 @@ def main():
                 )
                 if args.dry_run:
                     print(
-                        f"Dry run: would submit {len(variants)} variants to"
-                        " ClinVar"
+                        f"Dry run: would submit {len(variants)} variants to "
+                        "ClinVar"
                     )
                     continue
                 response = clinvar.clinvar_api_request(
@@ -459,10 +423,7 @@ def main():
                     args.print_submission_json,
                     args.no_retry,
                 )
-                print(
-                    f"Submission response: {response.status_code},"
-                    f" {response.text}"
-                )
+                print(f"Submission response: {response.status_code}, {response.text}")
                 if args.clinvar_testing is False:
                     db.add_submission_id_to_db(
                         response.json(), engine, df["local_id"].tolist()
