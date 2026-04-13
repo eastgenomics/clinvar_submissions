@@ -68,8 +68,8 @@ def preprocess_clarity_extract(clarity_df):
     )
 
     clarity_issues_df = clarity_df[
-        (clarity_df["R_codes"].str.len() == 0) |
-        (clarity_df["R_codes"].str.len() > 1)
+        (clarity_df["R_codes"].str.len() == 0)
+        | (clarity_df["R_codes"].str.len() > 1)
     ].copy()
 
     if not clarity_issues_df.empty:
@@ -99,8 +99,7 @@ def get_matching_projects(assays):
 
     matching_projects = list(
         dxpy.find_projects(
-            name={"regexp": re_pattern},
-            describe={"fields": {"name": True}}
+            name={"regexp": re_pattern}, describe={"fields": {"name": True}}
         )
     )
     matching_projects_dict = {
@@ -200,7 +199,8 @@ def fetch_all_reports(df, assays, chunk_size=100, max_workers=16):
 
     # Chunk sample IDs to manage search load
     chunks = [
-        sample_ids[i : i + chunk_size] for i in range(0, len(sample_ids), chunk_size)
+        sample_ids[i : i + chunk_size]
+        for i in range(0, len(sample_ids), chunk_size)
     ]
 
     tasks = [
@@ -228,7 +228,9 @@ def fetch_all_reports(df, assays, chunk_size=100, max_workers=16):
 
     if all_records:
         for record in all_records:
-            record["project_name"] = project_dict.get(record["project_id"], "Unknown")
+            record["project_name"] = project_dict.get(
+                record["project_id"], "Unknown"
+            )
 
         records_df = pd.DataFrame(all_records)
         print(f"Total reports fetched: {records_df.shape[0]}")
@@ -307,7 +309,8 @@ def create_path(filename, base_path, assay, run):
         path = base_path / "WES" / run_folder / filename
     else:
         print(
-            f"Warning: Unknown assay '{assay}' for filename {filename}. Returning None."
+            f"Warning: Unknown assay '{assay}' for filename {filename}."
+            " Returning None."
         )
         return pd.NA
     return path
@@ -348,24 +351,6 @@ def is_report_code_in_list(row) -> bool:
     return target in normalized_codes
 
 
-def extract_assay_from_filename(filename):
-    """
-    Extract the assay type from the given filename.
-
-    Inputs:
-        filename (str): The name of the file from which to extract the assay
-        type.
-
-    Outputs:
-        str or pd.NA: The extracted assay type (CEN or WES) or pd.NA if not
-        found.
-    """
-    if filename is None or pd.isna(filename):
-        return pd.NA
-    match = re.search(r"(CEN|WES)", filename)
-    return match.group(1) if match else pd.NA
-
-
 def filtering_reports(report_df):
     """
     Filter out reports based on if:
@@ -387,8 +372,15 @@ def filtering_reports(report_df):
         columns=report_df.columns.tolist() + ["issue"]
     )
     required = [
-        'file_name', 'project_id', 'project_name', 'Assay', 'path',
-        'instrument_id', 'full_sample_id', 'report_r_code', 'sample_id'
+        "file_name",
+        "project_id",
+        "project_name",
+        "Assay",
+        "path",
+        "instrument_id",
+        "full_sample_id",
+        "report_r_code",
+        "sample_id",
     ]
     missing_mask = report_df[required].isna().any(axis=1)
     if missing_mask.any():
@@ -405,22 +397,23 @@ def filtering_reports(report_df):
 
     # If no valid rows remain, return immediately
     if working_df.empty:
-        return (
-            pd.DataFrame(columns=report_df.columns),
-            data_issues_df
-        )
+        return (pd.DataFrame(columns=report_df.columns), data_issues_df)
 
     ## Remove and report rows where the R code in DX doesn't match
-    working_df["rcode_match"] = working_df.apply(is_report_code_in_list, axis=1)
+    working_df["rcode_match"] = working_df.apply(
+        is_report_code_in_list, axis=1
+    )
     valid_samples = set(working_df.loc[working_df["rcode_match"], "sample_id"])
     rcode_mismatch = working_df[
-        (~working_df["rcode_match"]) &
-        (~working_df["sample_id"].isin(valid_samples))
+        (~working_df["rcode_match"])
+        & (~working_df["sample_id"].isin(valid_samples))
     ].copy()
 
     if not rcode_mismatch.empty:
         rcode_mismatch["issue"] = "R code mismatch"
-        rcode_mismatch = rcode_mismatch.drop(columns=["rcode_match"], errors="ignore")
+        rcode_mismatch = rcode_mismatch.drop(
+            columns=["rcode_match"], errors="ignore"
+        )
         data_issues_df = pd.concat(
             [data_issues_df, rcode_mismatch], ignore_index=True
         )
@@ -429,10 +422,7 @@ def filtering_reports(report_df):
     working_df = working_df[working_df["rcode_match"]].copy()
     working_df = working_df.drop(columns=["rcode_match"], errors="ignore")
     if working_df.empty:
-        return (
-            pd.DataFrame(columns=report_df.columns),
-            data_issues_df
-        )
+        return (pd.DataFrame(columns=report_df.columns), data_issues_df)
 
     # Remove rows where there's multiple SNV reports per sample for same R
     # code
@@ -444,8 +434,9 @@ def filtering_reports(report_df):
     if not duplicate_groups.empty:
         # Keep ONE row per duplicated sample for the issues dataframe
         one_issue_row_per_sample = (
-            duplicate_groups
-            .sort_values(["Assay", "report_r_code", "sample_id"])
+            duplicate_groups.sort_values(
+                ["Assay", "report_r_code", "sample_id"]
+            )
             .groupby(["Assay", "report_r_code", "sample_id"], as_index=False)
             .first()
         )
@@ -455,15 +446,12 @@ def filtering_reports(report_df):
         )
 
         data_issues_df = pd.concat(
-            [data_issues_df, one_issue_row_per_sample],
-            ignore_index=True
+            [data_issues_df, one_issue_row_per_sample], ignore_index=True
         )
 
     # Keep only unique rows in filtered_df
     filtered_df = working_df[working_df["dup_count"] == 1].copy()
-    filtered_df = filtered_df.drop(
-        columns=["dup_count"], errors="ignore"
-    )
+    filtered_df = filtered_df.drop(columns=["dup_count"], errors="ignore")
 
     # Ensure filtered_df has all columns even if empty
     if filtered_df.empty:
@@ -486,11 +474,17 @@ def preprocess_report_df(report_df, base_path):
         columns.
     """
     # Extract assay from filename
-    report_df["Assay"] = report_df["file_name"].apply(extract_assay_from_filename)
+    report_df["Assay"] = (
+        report_df["project_name"]
+        .str.extract(r"_([^_]+)$", expand=False)
+        .where(report_df["project_name"].notna(), pd.NA)
+    )
 
     # Add the path to the processed reports
     report_df["path"] = report_df.apply(
-        lambda x: create_path(x["file_name"], base_path, x["Assay"], x["project_name"]),
+        lambda x: create_path(
+            x["file_name"], base_path, x["Assay"], x["project_name"]
+        ),
         axis=1,
     )
 
@@ -510,9 +504,7 @@ def preprocess_report_df(report_df, base_path):
     return report_df
 
 
-def handle_clarity_extract(
-    clarity_extract_path, assays, base_path
-):
+def handle_clarity_extract(clarity_extract_path, assays, base_path):
     """
     Main function to handle clarity extract and return paths to workbooks
     Inputs:
@@ -538,8 +530,15 @@ def handle_clarity_extract(
         empty_df = pd.DataFrame(
             columns=list(clarity_df.columns)
             + [
-                'file_name', 'project_id', 'project_name', 'R_codes', 'Assay',
-                'path', 'instrument_id', 'full_sample_id', 'report_r_code'
+                "file_name",
+                "project_id",
+                "project_name",
+                "R_codes",
+                "Assay",
+                "path",
+                "instrument_id",
+                "full_sample_id",
+                "report_r_code",
             ]
         )
         return clarity_df_preprocessed, empty_df.copy(), clarity_issues_df
@@ -553,8 +552,6 @@ def handle_clarity_extract(
     # Filter out all rows with no DX data, no reports matching the R code
     # or multiple reports for same R code
     filtered_df, data_issues_df = filtering_reports(report_df)
-    print(
-        f"Total reports remaining after filtering: {filtered_df.shape[0]}"
-    )
+    print(f"Total reports remaining after filtering: {filtered_df.shape[0]}")
 
     return filtered_df, data_issues_df, clarity_issues_df
