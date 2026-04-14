@@ -235,6 +235,45 @@ class TestFetchAllReports:
         assert out.empty
 
 
+class TestExtractAssay:
+    """Test extracting assay from DNAnexus project name"""
+    def test_valid_cen_38(self):
+        assert ceh.extract_assay(
+            "002_260410_A01303_0752_BHLC3LDRX7_38_CEN"
+        ) == "CEN"
+
+    def test_valid_cen_37(self):
+        assert ceh.extract_assay(
+            "002_260410_A01303_0752_BHLC3LDRX7_CEN"
+        ) == "CEN"
+
+    def test_valid_wes_38(self):
+        assert ceh.extract_assay(
+            "002_250924_A01303_0632_AHCFJFDRX7_38_TWE"
+        ) == "TWE"
+
+    def test_valid_wes_37(self):
+        assert ceh.extract_assay(
+            "002_250924_A01303_0632_AHCFJFDRX7_TWE"
+        ) == "TWE"
+
+    def test_no_assay(self):
+        assert ceh.extract_assay(
+            "002_250924_A01303_0632_AHCFJFDRX7"
+        ) is pd.NA
+
+    def test_unknown_assay(self):
+        assert ceh.extract_assay(
+            "002_250924_A01303_0632_AHCFJFDRX7_UNKNOWN"
+        ) is pd.NA
+
+    def test_extract_assay_returns_na_when_input_is_none(self):
+        assert pd.isna(ceh.extract_assay(None))
+
+    def test_extract_assay_returns_na_when_input_is_na(self):
+        assert pd.isna(ceh.extract_assay(pd.NA))
+
+
 class TestRCodeMatching:
     """Test R code matching in filenames."""
     @pytest.fixture

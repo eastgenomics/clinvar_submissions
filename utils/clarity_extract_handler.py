@@ -454,6 +454,26 @@ def filtering_reports(report_df):
     return filtered_df, data_issues_df
 
 
+def extract_assay(project_name: str) -> str:
+    """
+    Extract assay from DNAnexus project_name (expecting "CEN" or "TWE")
+
+    Parameters
+    ----------
+    project_name : str
+        DNAnexus project name
+
+    Returns
+    -------
+    str or pd.NA
+        The extracted assay type (i.e. CEN or TWE) or pd.NA if not found
+    """
+    if project_name is None or pd.isna(project_name):
+        return pd.NA
+    match = re.search(r"_(CEN|TWE)$", project_name)
+    return match.group(1) if match else pd.NA
+
+
 def preprocess_report_df(report_df, base_path):
     """
     Preprocess the report DataFrame by adding necessary columns and cleaning
@@ -467,12 +487,8 @@ def preprocess_report_df(report_df, base_path):
         report_df (pd.DataFrame): Preprocessed DataFrame with additional
         columns.
     """
-    # Extract assay from filename
-    report_df["Assay"] = (
-        report_df["project_name"]
-        .str.extract(r"_([^_]+)$", expand=False)
-        .where(report_df["project_name"].notna(), pd.NA)
-    )
+    # Extract assay from DNAnexus project name
+    report_df["Assay"] = report_df["project_name"].apply(extract_assay)
 
     # Add the path to the processed reports
     report_df["path"] = report_df.apply(
