@@ -357,8 +357,9 @@ def main():
             )
             workbook = load_workbook(filename)
             if file not in failed_list:
-                # Was "NULL" but None in SQLAlchemy becomes NULL in SQL
-                db.add_wb_to_db(file, None, engine)
+                if not args.dry_run:
+                    # Was "NULL" but None in SQLAlchemy becomes NULL in SQL
+                    db.add_wb_to_db(file, None, engine)
             # Get a df of data from each sheet in workbook:
             df = utils.get_workbook_data(
                 workbook, config, filename, file, engine, args.organisation
@@ -408,6 +409,12 @@ def main():
                 variants = clinvar.collect_clinvar_data_to_submit(
                     df, config["ref_genomes"]
                 )
+                if args.dry_run:
+                    print(
+                        f"Dry run: would submit {len(variants)} variants to "
+                        "ClinVar"
+                    )
+                    continue
                 response = clinvar.clinvar_api_request(
                     api_url,
                     df.header,

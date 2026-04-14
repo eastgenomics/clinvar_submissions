@@ -28,6 +28,8 @@ This script searches a given folder for Excel variant workbooks that have not pr
     ```
 * `--config`: config file, should be the config.json from https://github.com/eastgenomics/clinvar_submissions_config.
 * `--organisation`: Organisation to submit for, either "CUH" or "NUH". This determines which ClinVar API key and submission URL to use.
+* `--output_dir`: (path to output directory) the script will output any inconsistent/parsed Clarity files to this directory.
+
 ### One option which specifies the run-mode i.e. from clarity extract, workbooks path or samples_file:
 These are mutually exclusive, one must be specified.
 * `--path_to_workbooks`: Local path to Excel workbooks that need submitting.
@@ -40,7 +42,6 @@ These are mutually exclusive, one must be specified.
   * Test Directory Test Code
   * Test Validation Status
   * Last Final Verify Date
-* `--output_dir`: (path to output directory) If specified, the script will output any inconsistent/parsed clarity files to this directory.
 
 **Optional:**
 * `--use_paths`: (boolean) Default is False, if specified, will use the paths from the clarity extract directly. If False, will output a CSV for review.
